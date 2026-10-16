@@ -308,15 +308,17 @@ class Worker:
             subprocess.SubprocessError,
             psutil.Error,
             sqlite3.Error,
-        ):
+        ) as exc:
             if process is not None and process.poll() is None:
                 stop_group(psutil.Process(process.pid), self.stop_grace)
                 process.wait(timeout=self.stop_grace + 2)
             self._fail(
                 job_id,
                 attempt,
-                "pipeline_failed",
-                "Processing or result validation failed. Retry this job.",
+                exc.code if isinstance(exc, JobError) else "pipeline_failed",
+                exc.message
+                if isinstance(exc, JobError)
+                else "Processing or result validation failed. Retry this job.",
             )
         finally:
             # Persistence errors never leave a live inference process behind.

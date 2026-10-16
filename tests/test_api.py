@@ -137,3 +137,32 @@ def test_stopped_supervised_worker_reports_actionable_readiness(client):
     assert result["ready"] is False
     assert result["worker"]["running"] is False
     assert "Restart the application" in result["worker"]["message"]
+
+
+def test_retry_cannot_silently_change_the_imported_model_revision(client):
+    references = {
+        "fast": {
+            "ready": True,
+            "repo": "mlx-community/whisper-large-v3-turbo",
+            "revision": "a" * 40,
+        },
+        "diarization": {
+            "ready": True,
+            "repo": "pyannote/speaker-diarization-community-1",
+            "revision": "b" * 40,
+        },
+        "quality": {"ready": False},
+    }
+    client.app.state.readiness = lambda: references
+    job = create(client)
+    assert job["modelSettings"]["fast"]["revision"] == "a" * 40
+    path = "/api/jobs/" + job["id"]
+    assert client.post(path + "/cancel").json()["status"] == "cancelled"
+    references["fast"]["revision"] = "c" * 40
+    response = client.post(path + "/retry")
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "model_revision_changed"
+    assert client.get(path).json()["status"] == "cancelled"
+    references["fast"]["revision"] = "a" * 40
+    assert client.post(path + "/retry").json()["status"] == "queued"
+    assert client.get(path).json()["modelSettings"]["fast"]["revision"] == "a" * 40

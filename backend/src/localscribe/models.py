@@ -22,6 +22,21 @@ LOCK = Path(__file__).resolve().parents[3] / "model-lock.json"
 _integrity_cache: dict[tuple[str, str], tuple[tuple, dict]] = {}
 
 
+class ModelRevisionError(RuntimeError):
+    """A queued recording must never silently change its model snapshots."""
+
+
+def require_revisions(root: Path, expected: dict) -> None:
+    for profile, reference in expected.items():
+        current = inspect(root, profile)
+        if not current["ready"] or any(
+            current.get(key) != reference.get(key) for key in ("repo", "revision")
+        ):
+            raise ModelRevisionError(
+                "Restore the recording's original model snapshots before retrying."
+            )
+
+
 def default_root() -> Path:
     return Path(
         os.environ.get("LOCALSCRIBE_MODEL_ROOT", Path.home() / "Library/Caches/LocalScribe/models")
@@ -186,7 +201,9 @@ def main() -> None:
     parser.add_argument("action", choices=["download", "doctor"])
     parser.add_argument("--profile", choices=REPOSITORIES, default="fast")
     parser.add_argument("--root", type=Path, default=default_root())
-    parser.add_argument("--asr-only", action="store_true", help="Doctor allows intentionally disabled diarization")
+    parser.add_argument(
+        "--asr-only", action="store_true", help="Doctor allows intentionally disabled diarization"
+    )
     parser.add_argument(
         "--resolve", action="store_true", help="Explicitly update the repository revision lock"
     )
@@ -204,10 +221,14 @@ def main() -> None:
     else:
         result = doctor(args.root)
         result["ready"] = (
-            result["ffmpeg"] and result["ffprobe"] and result["models"]["fast"]["ready"]
+            result["ffmpeg"]
+            and result["ffprobe"]
+            and result["models"]["fast"]["ready"]
             and (args.asr_only or result["models"]["diarization"]["ready"])
-            and result["storage"]["writable"] and result["storage"]["availableBytes"] >= 64 * 1024**2
-            and result["architecture"] == "arm64" and all(result["packages"].values())
+            and result["storage"]["writable"]
+            and result["storage"]["availableBytes"] >= 64 * 1024**2
+            and result["architecture"] == "arm64"
+            and all(result["packages"].values())
         )
         print(json.dumps(result, indent=2))
         if not result["ready"]:

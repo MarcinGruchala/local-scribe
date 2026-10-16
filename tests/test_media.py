@@ -2,6 +2,7 @@
 
 import asyncio
 import io
+import json
 import shutil
 import subprocess
 import wave
@@ -239,3 +240,29 @@ def test_disguised_playlist_cannot_expand_supported_local_media(tmp_path):
     with pytest.raises(MediaError) as error:
         probe(playlist)
     assert error.value.code == "undecodable_media"
+
+
+def test_import_snapshots_model_references_before_streaming(source, jobs):
+    original_models = {
+        "fast": {"repo": "fixture/asr", "revision": "a" * 40},
+        "diarization": {"repo": "fixture/diarization", "revision": "b" * 40},
+    }
+    expected_models = json.loads(json.dumps(original_models))
+
+    class AssetChangingUpload(UploadFile):
+        async def read(self, size=-1):
+            original_models["fast"]["revision"] = "c" * 40
+            return await super().read(size)
+
+    job = asyncio.run(
+        import_upload(
+            AssetChangingUpload(io.BytesIO(source.read_bytes()), filename="input.wav"),
+            jobs.storage,
+            {},
+            jobs,
+            model_settings=original_models,
+        )
+    )
+    assert original_models["fast"]["revision"] != expected_models["fast"]["revision"]
+    assert job["modelSettings"] == expected_models
+    assert jobs.get(job["id"])["modelSettings"] == expected_models

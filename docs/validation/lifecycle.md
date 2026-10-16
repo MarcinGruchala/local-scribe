@@ -28,6 +28,8 @@ Import request parsing/readiness rejection and normalized WAV HTTP range behavio
 
 SQLite transactions claim the oldest queued job only when no attempt is active. Attempt options are copied into the attempts table when claimed. A transaction ends before starting FFmpeg or inference.
 
+Imports also snapshot immutable repository IDs and exact model revisions into the job metadata before streaming starts. The same references survive queueing, retry, and application restart, even if an explicit model setup later changes the current profile assets. Successful publication verifies ASR and successful diarization provenance against those original references; a repository/revision mismatch returns `409 model_revision_changed` without publishing a completed result. Failed or disabled diarization has no successful model provenance to compare. Deterministic tests may omit the model map, but a supplied incomplete map cannot bypass publication checks. API and pipeline preflight separately reject changed assets before inference.
+
 Status/history polling reads small warning metadata from SQLite without opening complete transcript files. Migration 3 backfills older results once. A transient SQLite claim failure waits briefly and retries; persistent failure to save an attempt failure stops the worker after terminating its child, leaving the active record for startup recovery. The worker exposes its actual thread liveness for diagnostics.
 
 The launcher holds its store-level single-instance lock; the worker additionally owns `worker.lock` with an exclusive nonblocking `flock`. Every attempt uses a fresh process session. A small child gate waits for durable PID/create-time registration before it execs the pipeline. It receives the original parent PID and creation time explicitly, checks that identity before starting inference, and rejects adoption by another parent even if a permission file exists.
@@ -66,3 +68,12 @@ These checks establish media handling, process lifecycle, and deterministic pers
 ## Additional real-model cancellation evidence
 
 The normal OS-offline application cancelled an active Fast-model transcription on a 211.2-second repetition of the public English FLEURS snippet. The cancelled attempt exposed no transcript and remained cancelled after a late-publication observation window. Explicit retry completed as attempt 2 with the same settings, then confirmed deletion removed the job. The successful retry recorded ASR 4.945 s and total child pipeline 6.277 s. This repeated snippet is solely a cancellation input, not a representative performance or quality benchmark. Reproduce against the isolated real validation server using `scripts/check-live-cancellation.py` after preparing its public cancellation WAV; no other model job may run concurrently.
+
+Prepare the cancellation-only input and run the check while the isolated real server is running:
+
+```sh
+ffmpeg -v error -nostdin -y -stream_loop 19 \
+  -i /private/tmp/localscribe-validation/fleurs-en.wav \
+  -ac 1 -ar 16000 -c:a pcm_s16le /private/tmp/localscribe-validation/cancellation.wav
+.venv/bin/python scripts/check-live-cancellation.py
+```

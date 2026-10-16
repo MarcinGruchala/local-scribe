@@ -199,10 +199,20 @@ def normalize(source: Path, target: Path, limits: Limits | None = None) -> dict:
         partial.unlink(missing_ok=True)
 
 
-async def import_upload(upload, storage, options, jobs, limits: Limits | None = None) -> dict:
+async def import_upload(
+    upload,
+    storage,
+    options,
+    jobs,
+    limits: Limits | None = None,
+    *,
+    model_settings: dict | None = None,
+) -> dict:
     """Copy bounded chunks, validate on disk, then create the durable queue record."""
     limits = limits or Limits()
     options = Options.model_validate(options)
+    # Snapshot caller-owned readiness before the first await or mutable asset change.
+    pinned_models = json.loads(json.dumps(model_settings)) if model_settings is not None else None
     filename = str(upload.filename or "recording")
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
@@ -229,6 +239,8 @@ async def import_upload(upload, storage, options, jobs, limits: Limits | None = 
             os.fsync(handle.fileno())
         metadata = await asyncio.to_thread(probe, temporary, limits)
         metadata["duration"] = await asyncio.to_thread(validate_decode, temporary, limits)
+        if pinned_models is not None:
+            metadata["modelSettings"] = pinned_models
         required = math.ceil(metadata["duration"] * 16000 * 2) + limits.reserve_bytes
         if shutil.disk_usage(storage.root).free < required:
             raise MediaError(

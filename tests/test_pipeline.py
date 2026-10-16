@@ -72,3 +72,22 @@ def test_disabled_diarization_is_intentional_and_empty_asr_has_notice(tmp_path, 
     value = json.loads(output.read_text())
     assert value["provenance"]["diarization"]["status"] == "disabled"
     assert {w["code"] for w in value["warnings"]} == {"empty_transcript"}
+
+
+def test_changed_snapshot_fails_before_decoding_or_model_inference(tmp_path, monkeypatch):
+    from localscribe.models import ModelRevisionError
+
+    current = request(tmp_path)
+    current["job"] = {
+        "modelSettings": {
+            "fast": {"repo": "mlx-community/whisper-large-v3-turbo", "revision": "a" * 40}
+        }
+    }
+    monkeypatch.setattr(
+        pipeline,
+        "normalize",
+        lambda *args: pytest.fail("Changed models must fail before work starts"),
+    )
+    with pytest.raises(ModelRevisionError, match="original model snapshots"):
+        pipeline.run(current, tmp_path / "result.json")
+    assert not (tmp_path / "result.json").exists()

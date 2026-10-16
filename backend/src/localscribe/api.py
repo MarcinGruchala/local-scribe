@@ -129,7 +129,14 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
                 "model_not_ready",
                 "Required local models are missing. Run explicit model setup and doctor.",
             )
-        return await import_upload(file, storage, settings_options.model_dump(), jobs)
+        references = {
+            name: {key: models[name][key] for key in ("repo", "revision")}
+            for name in required
+            if models[name].get("repo") and models[name].get("revision")
+        }
+        return await import_upload(
+            file, storage, settings_options.model_dump(), jobs, model_settings=references or None
+        )
 
     @app.get("/api/jobs")
     def list_jobs(limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0)):
@@ -156,6 +163,13 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
                 "model_not_ready",
                 "Required local models are missing. Run explicit model setup and doctor.",
             )
+        for name, reference in job.get("modelSettings", {}).items():
+            if any(models[name].get(key) != reference.get(key) for key in ("repo", "revision")):
+                raise JobError(
+                    409,
+                    "model_revision_changed",
+                    "Restore this recording's original model snapshots before retrying.",
+                )
         return jobs.retry(job_id)
 
     @app.get("/api/jobs/{job_id}/media")

@@ -254,6 +254,37 @@ class Jobs:
                 return False
             if transcript.options.model_dump() != json.loads(row["options"]):
                 raise ValueError("The result settings differ from immutable attempt options.")
+            pinned_models = json.loads(row["metadata"]).get("modelSettings")
+            if pinned_models is not None:
+                for engine, profile in (
+                    ("asr", transcript.options.profile),
+                    ("diarization", "diarization"),
+                ):
+                    actual = transcript.provenance.get(engine, {})
+                    if (
+                        engine == "diarization"
+                        and isinstance(actual, dict)
+                        and actual.get("status") in {"failed", "disabled"}
+                    ):
+                        continue
+                    expected = (
+                        pinned_models.get(profile) if isinstance(pinned_models, dict) else None
+                    )
+                    if (
+                        not isinstance(expected, dict)
+                        or not isinstance(actual, dict)
+                        or any(
+                            not isinstance(expected.get(key), str)
+                            or not expected[key]
+                            or expected[key] != actual.get(key)
+                            for key in ("repo", "revision")
+                        )
+                    ):
+                        raise JobError(
+                            409,
+                            "model_revision_changed",
+                            "The result does not match this job's pinned model revisions.",
+                        )
             destination.parent.mkdir(parents=True, exist_ok=True)
             os.replace(result_path, destination)
             now = time.time()

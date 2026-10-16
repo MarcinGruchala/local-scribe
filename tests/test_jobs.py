@@ -288,3 +288,84 @@ def test_publish_persists_small_warning_metadata(jobs, tmp_path):
     output.write_text(json.dumps(payload))
     jobs.publish(job["id"], job["attempt"], output)
     assert jobs.get(job["id"])["warnings"] == payload["warnings"]
+
+
+PINNED_MODELS = {
+    "fast": {"repo": "fixture/asr", "revision": "a" * 40},
+    "diarization": {"repo": "fixture/diarization", "revision": "b" * 40},
+}
+
+
+def pinned_job(jobs, tmp_path):
+    source = tmp_path / "pinned-source.wav"
+    source.write_bytes(b"original media bytes")
+    return jobs.create_import(
+        source, "pinned-source.wav", {"duration": 1, "modelSettings": PINNED_MODELS}, {}
+    )
+
+
+def pinned_result(jobs, job):
+    path = result(jobs, job)
+    payload = json.loads(path.read_text())
+    payload["provenance"] = {
+        "asr": dict(PINNED_MODELS["fast"]),
+        "diarization": dict(PINNED_MODELS["diarization"]),
+    }
+    path.write_text(json.dumps(payload))
+    return path
+
+
+def test_pinned_model_references_survive_retry_and_restart(jobs, tmp_path):
+    original = pinned_job(jobs, tmp_path)
+    claimed = jobs.claim()
+    assert claimed["modelSettings"] == PINNED_MODELS
+    jobs.fail(original["id"], 1, "interrupted", "Retry this job.")
+    jobs.retry(original["id"])
+    restarted = Jobs(Storage(jobs.storage.root))
+    restarted.initialize()
+    restarted.recover()
+    retry = restarted.claim()
+    assert retry["attempt"] == 2 and retry["modelSettings"] == original["modelSettings"]
+    assert retry["options"] == original["options"]
+    assert restarted.publish(retry["id"], 2, pinned_result(restarted, retry))
+
+
+@pytest.mark.parametrize(
+    "engine,field",
+    [("asr", "revision"), ("asr", "repo"), ("diarization", "revision"), ("diarization", "repo")],
+)
+def test_mismatched_provenance_cannot_publish(jobs, tmp_path, engine, field):
+    pinned_job(jobs, tmp_path)
+    claimed = jobs.claim()
+    path = pinned_result(jobs, claimed)
+    payload = json.loads(path.read_text())
+    payload["provenance"][engine][field] = "changed"
+    path.write_text(json.dumps(payload))
+    with pytest.raises(JobError) as error:
+        jobs.publish(claimed["id"], claimed["attempt"], path)
+    assert error.value.code == "model_revision_changed"
+    assert jobs.get(claimed["id"])["status"] == "preparing"
+    assert not path.with_name("published.json").exists()
+    with pytest.raises(JobError):
+        jobs.transcript(claimed["id"])
+
+
+@pytest.mark.parametrize("status", ["failed", "disabled"])
+def test_degraded_or_disabled_diarization_does_not_claim_model_success(jobs, tmp_path, status):
+    pinned_job(jobs, tmp_path)
+    claimed = jobs.claim()
+    path = pinned_result(jobs, claimed)
+    payload = json.loads(path.read_text())
+    payload["provenance"]["diarization"] = {"status": status}
+    path.write_text(json.dumps(payload))
+    assert jobs.publish(claimed["id"], claimed["attempt"], path)
+
+
+def test_incomplete_pinned_map_cannot_bypass_publication_checks(jobs, tmp_path):
+    source = tmp_path / "source.wav"
+    source.write_bytes(b"original")
+    jobs.create_import(source, "source.wav", {"duration": 1, "modelSettings": {}}, {})
+    claimed = jobs.claim()
+    with pytest.raises(JobError) as error:
+        jobs.publish(claimed["id"], claimed["attempt"], result(jobs, claimed))
+    assert error.value.code == "model_revision_changed"
