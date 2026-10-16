@@ -21,7 +21,7 @@ Updated: 2026-10-16. Branch: `codex/mvp-implementation`. Goal is **not complete*
 
 ## Tracking
 
-Acceptance evidence supports completion of LS-002, LS-003, LS-004, LS-005, LS-007, LS-008, LS-009, LS-010. GitHub issue synchronization is the final tracking step. LS-001, LS-006, LS-011, LS-012 remain incomplete. Sanitized release decision: **NOT READY**, in validation/mvp-release.md.
+Acceptance evidence supports completion of LS-002, LS-003, LS-004, LS-005, LS-007, LS-008, LS-009, LS-010. GitHub checkboxes and completion/blocker comments synchronized; those eight issues are closed and verified. LS-001, LS-006, LS-011, LS-012 remain incomplete. Sanitized release decision: **NOT READY**, in validation/mvp-release.md.
 
 ## Required human prerequisites
 
@@ -30,4 +30,6 @@ Acceptance evidence supports completion of LS-002, LS-003, LS-004, LS-005, LS-00
 
 ## Resume
 
-All model inference must remain sequential. No download or model job is running. An isolated real app is running at 127.0.0.1:8767 under scripts/offline.sb; validation jobs were deleted. Check existing process/ownership before starting another launcher. Complete actual Community-1 CPU/transitive-assets/offline checks after access, then reference scoring/performance/stability, update reports and incomplete issues, and only then consider Goal completion. Do not replace pending evidence with fixtures or repeated-snippet benchmarks.
+All model inference must remain sequential. No download or model job is running. Validation servers are stopped and validation jobs were deleted. The normal app is running at http://127.0.0.1:8768 with the persistent default data root; port 8765 was already occupied. Restart with `LOCALSCRIBE_PORT=8768 make start`. Check existing process/ownership before starting another launcher. Complete actual Community-1 CPU/transitive-assets/offline checks after access, then reference scoring/performance/stability, update reports and incomplete issues, and only then consider Goal completion. Do not replace pending evidence with fixtures or repeated-snippet benchmarks.
+
+The branch and evidence are pushed to origin. No independent implementation work remains; actual Community-1 and representative release measurements require the human prerequisites above. This is the first goal turn waiting on those prerequisites; do not mark the Goal complete.

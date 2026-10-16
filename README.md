@@ -18,7 +18,7 @@ make models PROFILE=diarization
 make doctor
 ```
 
-Review the [Community-1 conditions](https://huggingface.co/pyannote/speaker-diarization-community-1) yourself. LocalScribe never accepts them for you. Download tokens belong only in your shell/credential store, never the UI, Git, or issue comments. Do not include a token in a command argument. Unset `HF_TOKEN` after setup. Downloads happen only through `make models`; startup never downloads weights.
+Review the [Community-1 conditions](https://huggingface.co/pyannote/speaker-diarization-community-1) yourself. LocalScribe never accepts them for you. You can authenticate the external local store with `.venv/bin/hf auth login --no-add-to-git-credential` in your terminal. Download tokens belong only in your shell/credential store, never the UI, Git, or issue comments. Do not include a token in a command argument. Unset `HF_TOKEN` after setup. Downloads happen only through `make models`; startup never downloads weights.
 
 `model-lock.json` records exact model revisions. Local manifests record SHA-256 hashes for each asset. The Fast profile is provisional pending reference measurements; the Quality profile requires an explicit compatibility spike before it is enabled; representative quality remains unverified for both profiles. See [model spike](docs/research/model-spike.md).
 
@@ -28,7 +28,7 @@ Review the [Community-1 conditions](https://huggingface.co/pyannote/speaker-diar
 make start
 ```
 
-One launcher owns the store, starts one supervised worker, serves the built frontend on `http://127.0.0.1:8765`, and opens your browser. Stop it with Ctrl-C. A second launcher cannot own the same store. `make dev` starts without opening a browser. Configuration:
+One launcher owns the store, starts one supervised worker, serves the built frontend on `http://127.0.0.1:8765`, and opens your browser. Stop it with Ctrl-C. If the default port is occupied, start with `LOCALSCRIBE_PORT=8768 make start` (or another free port). A second launcher cannot own the same store. `make dev` starts without opening a browser. Configuration:
 
 - `LOCALSCRIBE_DATA_ROOT`: default `~/Library/Application Support/LocalScribe/`.
 - `LOCALSCRIBE_MODEL_ROOT`: default `~/Library/Caches/LocalScribe/models/`.
