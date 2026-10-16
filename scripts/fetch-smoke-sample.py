@@ -1,8 +1,9 @@
 """Fetch the public Whisper JFK smoke input; never a release quality reference."""
+
 import argparse
 import hashlib
-from pathlib import Path
 import urllib.request
+from pathlib import Path
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("output", type=Path)
@@ -16,4 +17,6 @@ if not data.startswith(b"fLaC"):
     raise SystemExit("Upstream fixture is not FLAC.")
 args.output.write_bytes(data)
 args.output.chmod(0o600)
-print(f"Downloaded public smoke fixture: {len(data)} bytes; sha256={hashlib.sha256(data).hexdigest()}")
+print(
+    f"Downloaded public smoke fixture: {len(data)} bytes; sha256={hashlib.sha256(data).hexdigest()}"
+)

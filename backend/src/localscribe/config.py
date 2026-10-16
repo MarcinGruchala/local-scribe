@@ -44,4 +44,8 @@ class Settings:
         )
         if not 1 <= settings.port <= 65535:
             raise ValueError("Port must be between 1 and 65535.")
+        if any(
+            path.is_relative_to(repository) for path in (settings.data_root, settings.model_root)
+        ):
+            raise ValueError("Private data and model directories must be outside the repository.")
         return settings

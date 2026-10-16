@@ -227,3 +227,15 @@ def test_saved_duration_uses_complete_decoded_audio(source, jobs, monkeypatch):
         )
     )
     assert job["duration"] == pytest.approx(1, abs=0.001)
+
+
+def test_disguised_playlist_cannot_expand_supported_local_media(tmp_path):
+    source = tmp_path / "source.wav"
+    with wave.open(str(source), "wb") as handle:
+        handle.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        handle.writeframes(b"\0\0" * 16000)
+    playlist = tmp_path / "disguised.mp3"
+    playlist.write_text("ffconcat version 1.0\nfile 'source.wav'\n")
+    with pytest.raises(MediaError) as error:
+        probe(playlist)
+    assert error.value.code == "undecodable_media"

@@ -104,3 +104,10 @@ def test_missing_frontend_is_actionable(settings):
         response = client.get("/")
         assert response.status_code == 503
         assert response.json()["error"]["code"] == "frontend_not_built"
+
+
+def test_private_roots_cannot_enter_checkout(monkeypatch):
+    repository = Path(__file__).resolve().parents[1]
+    monkeypatch.setenv("LOCALSCRIBE_DATA_ROOT", str(repository / "private-recordings"))
+    with pytest.raises(ValueError, match="outside the repository"):
+        Settings.from_env()

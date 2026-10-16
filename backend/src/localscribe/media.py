@@ -13,6 +13,12 @@ from pathlib import Path
 from .contracts import Options
 
 ALLOWED_EXTENSIONS = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".mp4", ".mov"}
+LOCAL_INPUT_FLAGS = [
+    "-protocol_whitelist",
+    "file,pipe",
+    "-format_whitelist",
+    "wav,mp3,mov,flac,ogg",
+]
 
 
 class MediaError(Exception):
@@ -37,7 +43,17 @@ def probe(path: Path, limits: Limits | None = None) -> dict:
         raise MediaError(413, "media_too_large", "The recording exceeds the byte limit.")
     try:
         process = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path)],
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                *LOCAL_INPUT_FLAGS,
+                "-show_streams",
+                "-show_format",
+                "-of",
+                "json",
+                str(path),
+            ],
             capture_output=True,
             timeout=30,
             check=True,
@@ -83,8 +99,7 @@ def validate_decode(path: Path, limits: Limits | None = None) -> float:
                 "-xerror",
                 "-err_detect",
                 "explode",
-                "-protocol_whitelist",
-                "file,pipe",
+                *LOCAL_INPUT_FLAGS,
                 "-i",
                 str(path),
                 "-map",
@@ -144,8 +159,7 @@ def normalize(source: Path, target: Path, limits: Limits | None = None) -> dict:
                 "-xerror",
                 "-err_detect",
                 "explode",
-                "-protocol_whitelist",
-                "file,pipe",
+                *LOCAL_INPUT_FLAGS,
                 "-i",
                 str(source),
                 "-map",

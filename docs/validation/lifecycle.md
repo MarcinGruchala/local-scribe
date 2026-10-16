@@ -62,3 +62,7 @@ Only completed, failed, cancelled, or already-deleting jobs can be deleted. Queu
 ## Release boundary
 
 These checks establish media handling, process lifecycle, and deterministic persistence behavior. They do not establish real ASR/diarization accuracy, speaker count accuracy, model performance, cached-model network isolation, or browser usability. Those require the separate model, browser, and offline release gates in the accepted MVP specification.
+
+## Additional real-model cancellation evidence
+
+The normal OS-offline application cancelled an active Fast-model transcription on a 211.2-second repetition of the public English FLEURS snippet. The cancelled attempt exposed no transcript and remained cancelled after a late-publication observation window. Explicit retry completed as attempt 2 with the same settings, then confirmed deletion removed the job. The successful retry recorded ASR 4.945 s and total child pipeline 6.277 s. This repeated snippet is solely a cancellation input, not a representative performance or quality benchmark. Reproduce against the isolated real validation server using `scripts/check-live-cancellation.py` after preparing its public cancellation WAV; no other model job may run concurrently.

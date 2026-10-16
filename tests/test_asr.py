@@ -14,6 +14,7 @@ def test_adapter_uses_local_original_language_word_timestamps_and_releases_cache
 ):
     snapshot = tmp_path / "immutable-snapshot"
     snapshot.mkdir()
+    monkeypatch.setattr(asr_mlx, "digital_silence", lambda _: False)
     monkeypatch.setattr(asr_mlx, "local_path", Mock(return_value=snapshot))
     monkeypatch.setattr(asr_mlx, "inspect", Mock(return_value={"revision": "sha"}))
     monkeypatch.setattr(asr_mlx.importlib.metadata, "version", lambda _: "test-version")
@@ -48,3 +49,26 @@ def test_adapter_uses_local_original_language_word_timestamps_and_releases_cache
     assert output["stageTimings"]["asr"] >= 0
     assert Holder.model is None
     mx.clear_cache.assert_called_once()
+
+
+def test_only_exact_digital_silence_skips_inference(tmp_path, monkeypatch):
+    import wave
+
+    path = tmp_path / "silence.wav"
+    with wave.open(str(path), "wb") as stream:
+        stream.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        stream.writeframes(b"\0\0" * 32000)
+    assert asr_mlx.digital_silence(path)
+    monkeypatch.setattr(asr_mlx, "local_path", lambda *args: tmp_path)
+    monkeypatch.setattr(asr_mlx, "inspect", lambda *args: {"revision": "test-sha"})
+    monkeypatch.setattr(asr_mlx.importlib.metadata, "version", lambda _: "test-version")
+    result = asr_mlx.transcribe(path, tmp_path, "fast", "auto")
+    assert result["segments"] == []
+    assert result["text"] == ""
+    assert result["provenance"]["asr"]["status"] == "skipped_digital_silence"
+    with wave.open(str(path), "wb") as stream:
+        stream.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        stream.writeframes(b"\0\0" * 31999 + b"\x01\0")
+    assert not asr_mlx.digital_silence(path), (
+        "Even one quiet nonzero PCM sample must remain eligible for model inference."
+    )

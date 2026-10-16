@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.metadata
 import json
 import os
 import platform
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 REPOSITORIES = {
@@ -89,10 +91,58 @@ def readiness(root: Path) -> dict:
             result[name] = dict(_integrity_cache[key][1])
         except (OSError, ValueError, KeyError, TypeError):
             result[name] = inspect(root, name)
+        if name == "quality" and result[name]["ready"]:
+            try:
+                evidence = json.loads((folder / "compatibility.json").read_text())
+                if (
+                    evidence.get("revision") != result[name]["revision"]
+                    or evidence.get("passed") is not True
+                ):
+                    raise ValueError("Compatibility evidence does not match the snapshot.")
+            except (OSError, ValueError, TypeError):
+                result[name].update(
+                    ready=False,
+                    message="Run a successful explicit Quality spike before enabling this profile.",
+                )
     return result
 
 
+def doctor(root: Path) -> dict:
+    from .config import Settings
+
+    data_root = Settings.from_env().data_root
+    writable = False
+    available = 0
+    try:
+        data_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        with tempfile.TemporaryFile(dir=data_root):
+            writable = True
+        available = shutil.disk_usage(data_root).free
+    except OSError:
+        pass
+    versions = {}
+    for name in ("mlx", "mlx-whisper", "pyannote.audio", "torch", "torchaudio", "torchcodec"):
+        try:
+            versions[name] = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            versions[name] = None
+    return {
+        "architecture": platform.machine(),
+        "python": platform.python_version(),
+        "ffmpeg": bool(shutil.which("ffmpeg")),
+        "ffprobe": bool(shutil.which("ffprobe")),
+        "storage": {"writable": writable, "availableBytes": available},
+        "packages": versions,
+        "models": {k: inspect(root, k, hashes=True) for k in REPOSITORIES},
+        "profiles": readiness(root),
+        "offline": os.environ.get("HF_HUB_OFFLINE") == "1",
+        "telemetryDisabled": os.environ.get("PYANNOTE_METRICS_ENABLED") == "0",
+    }
+
+
 def provision(root: Path, profile: str, *, resolve: bool = False) -> dict:
+    if root.resolve().is_relative_to(LOCK.parent):
+        raise ValueError("Model weights must stay outside the repository.")
     # Network access is confined to this explicitly invoked setup operation.
     os.environ["HF_HUB_OFFLINE"] = "0"
     from huggingface_hub import HfApi, constants, snapshot_download
@@ -100,6 +150,8 @@ def provision(root: Path, profile: str, *, resolve: bool = False) -> dict:
     constants.HF_HUB_OFFLINE = False
     lock = json.loads(LOCK.read_text()) if LOCK.exists() else {}
     repo = REPOSITORIES[profile]
+    if profile not in lock and not resolve:
+        raise ValueError("A pinned model revision is required. Resolve it explicitly first.")
     revision = (
         HfApi().model_info(repo).sha
         if resolve or profile not in lock
@@ -110,7 +162,11 @@ def provision(root: Path, profile: str, *, resolve: bool = False) -> dict:
     snapshot_download(repo, revision=revision, local_dir=folder)
     files = {}
     for path in sorted(folder.rglob("*")):
-        if path.is_file() and ".cache" not in path.parts and path.name != "manifest.json":
+        if (
+            path.is_file()
+            and ".cache" not in path.parts
+            and path.name not in {"manifest.json", "manifest.tmp", "compatibility.json"}
+        ):
             files[str(path.relative_to(folder))] = {
                 "bytes": path.stat().st_size,
                 "sha256": digest(path),
@@ -130,6 +186,7 @@ def main() -> None:
     parser.add_argument("action", choices=["download", "doctor"])
     parser.add_argument("--profile", choices=REPOSITORIES, default="fast")
     parser.add_argument("--root", type=Path, default=default_root())
+    parser.add_argument("--asr-only", action="store_true", help="Doctor allows intentionally disabled diarization")
     parser.add_argument(
         "--resolve", action="store_true", help="Explicitly update the repository revision lock"
     )
@@ -145,15 +202,15 @@ def main() -> None:
             )
             raise SystemExit(1)
     else:
-        result = {
-            "architecture": platform.machine(),
-            "python": platform.python_version(),
-            "ffmpeg": bool(shutil.which("ffmpeg")),
-            "ffprobe": bool(shutil.which("ffprobe")),
-            "models": {k: inspect(args.root, k, hashes=True) for k in REPOSITORIES},
-        }
+        result = doctor(args.root)
+        result["ready"] = (
+            result["ffmpeg"] and result["ffprobe"] and result["models"]["fast"]["ready"]
+            and (args.asr_only or result["models"]["diarization"]["ready"])
+            and result["storage"]["writable"] and result["storage"]["availableBytes"] >= 64 * 1024**2
+            and result["architecture"] == "arm64" and all(result["packages"].values())
+        )
         print(json.dumps(result, indent=2))
-        if not result["ffmpeg"] or not result["ffprobe"] or not result["models"]["fast"]["ready"]:
+        if not result["ready"]:
             raise SystemExit(1)
 
 

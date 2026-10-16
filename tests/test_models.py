@@ -48,3 +48,21 @@ def test_manifest_cannot_escape_model_directory(tmp_path):
     value["files"]["../../secret"] = {"bytes": 1, "sha256": "fake"}
     path.write_text(json.dumps(value))
     assert not inspect(tmp_path, "fast")["ready"]
+
+
+def test_readiness_rehashes_when_same_size_asset_changes(tmp_path):
+    folder = snapshot(tmp_path)
+    assert readiness(tmp_path)["fast"]["ready"]
+    (folder / "config.json").write_bytes(b"[]")
+    assert not readiness(tmp_path)["fast"]["ready"]
+
+
+def test_doctor_never_exposes_credentials_or_private_paths(tmp_path, monkeypatch):
+    from localscribe.models import doctor
+
+    monkeypatch.setenv("HF_TOKEN", "sensitive-download-token")
+    monkeypatch.setenv("LOCALSCRIBE_DATA_ROOT", str(tmp_path / "private-store"))
+    report = json.dumps(doctor(tmp_path / "absent-models"))
+    assert "sensitive-download-token" not in report
+    assert str(tmp_path) not in report
+    assert "availableBytes" in report

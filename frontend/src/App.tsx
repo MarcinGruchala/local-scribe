@@ -87,7 +87,7 @@ function TranscriptEditor({ job, transcript, onSaved }: { job: Job; transcript: 
     catch (error) { setSaveError(messageOf(error)); } finally { setSaving(false); }
   }
   function seek(value: number) { if (audio.current) { audio.current.currentTime = value; setTime(value); } }
-  const speakerName = (id: string | null) => id ? names[id] ?? transcript.speakers.find(speaker => speaker.id === id)?.displayName ?? id : 'Speaker unavailable';
+  const speakerName = (id: string | null) => id ? names[id] ?? transcript.speakers.find(speaker => speaker.id === id)?.displayName ?? id : job.options.diarization ? 'Speaker unavailable' : 'Text only';
   return <div className="transcript-editor">
     <audio ref={audio} controls preload="metadata" src={api.media(job.id)} onTimeUpdate={() => setTime(audio.current?.currentTime || 0)}>Your browser does not support audio playback.</audio>
     <div className="speaker-names">{transcript.speakers.map(speaker => <label key={speaker.id}>{speaker.id}<input value={names[speaker.id] ?? speaker.displayName} maxLength={120} onChange={event => { setNames({ ...names, [speaker.id]: event.target.value }); setFeedback(''); }} aria-label={`Display name for ${speaker.id}`} /></label>)}</div>

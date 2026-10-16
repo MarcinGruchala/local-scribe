@@ -93,7 +93,9 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
             "runtime": {"python": platform.python_version(), "architecture": platform.machine()},
             "storage": {"availableBytes": disk.free},
             "activeJob": active,
-            "worker": {"running": bool(getattr(getattr(app.state, "worker", None), "alive", False))},
+            "worker": {
+                "running": bool(getattr(getattr(app.state, "worker", None), "alive", False))
+            },
         }
 
     @app.post("/api/jobs", status_code=201)
