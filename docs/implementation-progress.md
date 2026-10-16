@@ -11,7 +11,7 @@ Updated: 2026-10-16. Branch: `codex/mvp-implementation`. Goal is **not complete*
 
 ## Verification
 
-- Final fast suite: 136 tests pass without weights/credentials; Ruff, TypeScript and production frontend build pass. A separate clean core-only environment also runs the suite; complete model dependencies install offline from the same cached lock.
+- Final fast suite: 153 tests pass without weights/credentials; Ruff, TypeScript and production frontend build pass. A separate clean core-only environment also runs the suite; complete model dependencies install offline from the same cached lock.
 - Actual FFmpeg covers all seven supported formats, full decoded validation, duration/byte/storage failures, local-only formats/protocols and original-byte retention.
 - Actual Chromium fixture checks cover picker/drop, measured upload, refresh/stages, keyboard, playback, editing, all exports, save failures, cancellation/retry/deletion, degraded/overlap states, dirty navigation and paginated history. Reports: validation/browser-smoke.md and validation/lifecycle.md.
 - Actual native MLX Fast and Quality EN/PL inference succeeds under OS external-network denial. Polish diacritics and Auto detection verified. Real EN/PL ASR-only browser workflows plus actual cancellation/retry pass. Final PL browser repeat verifies model pinning/runtime provenance.
@@ -23,16 +23,34 @@ Updated: 2026-10-16. Branch: `codex/mvp-implementation`. Goal is **not complete*
 
 LS-001 through LS-011 are complete and closed on GitHub, with synchronized acceptance checkboxes and evidence. LS-012 remains open: functional FR-01–FR-13 and actual offline inference criteria pass; representative quality/performance/stability gates remain incomplete. Sanitized release decision: **NOT READY**, in validation/mvp-release.md.
 
-## Required human prerequisites
+## Current release validation
 
-Provide approved 5–10 minute English and Polish two-speaker recordings with corrected text/turns, mixed-language/three-speaker/music/overlap challenges, representative 30 minute performance and approximately 60 minute stability inputs. See validation/reference-format.md. Public snippets and constructed repeated voices cannot replace these gates. A request for available paths is pending; a research subagent is checking whether suitable licensed annotated public conversations are available.
+The user supplied a private stereo AAC/M4A recording, 3762.55 s (62m42.55), for the long test. The original is untouched. Its exact input path is stored only in `/private/tmp/localscribe-private-validation/run-source.json`; do not copy that path, filename or content into Git.
 
-## Current resumed work
+Root owns the exclusive inference slot. Full Fast/Auto ASR plus CPU diarization runs under `scripts/offline.sb` and empty HF_HOME with the new pressure monitor (exec session **35730**, spike PID **48612**). Output: `/private/tmp/localscribe-private-validation/long-fast-offline.json`, with private `.spike.json`/`.spike.wav` alongside. Latest sampled pressure is normal (1); the run has not finished. No other model job may start until it exits.
 
-The user resolved model access: explicit Community-1 download succeeds, native CPU and complete offline inference pass. Full actual browser EN/PL and constructed A-B-A-B cases each pass 9 checks with saved name/text edits, all exports and deletion, zero external requests/page errors. Actual cancel during diarizing prevents immediate/late publication; retry preserves model/options, completes, and deletes its own job. Clean locked full environment + independently provisioned speaker assets completes Quality/PL ASR+diarization under OS network denial and empty HF home (59.472 s total, including substantial first-use/import overhead; not a performance gate).
+The isolated browser server at 8767 was stopped cleanly. The normal user app at 8768 remains running, idle, all models ready, zero jobs. Preserve it and user originals. Commits through dcaebc0 are pushed; benchmark monitor b61ce79 is committed and awaiting push. Fast checks now pass **153 tests**, Ruff and frontend build. LS-001–011 are closed; LS-012 remains open with functional/offline criteria checked and quality/performance gates pending.
 
-All model inference remains sequential. Root currently owns a free heavy slot. Validation server at http://127.0.0.1:8767 uses /private/tmp/localscribe-full-offline under scripts/offline.sb and empty HF_HOME (exec session 83952, PID 29472). Browser/cancellation jobs were deleted. Existing normal app at port 8768 still responds; inspect its state before any user-store actions. Shut down only the owned isolated server after checks.
+## Available independent reference work
 
-Commits a3f14cc, 66d748d and 47d9c72 are pushed; LS-001/006/011 closed and LS-012 functional/offline checkboxes updated. Next: acquire and audit suitable public conversation references, then run remaining gates sequentially. Alignment subagent is checking public licensed manually annotated natural conversations: LUNA.PL (official BSD-2, Polish manual TRS/XML) and UCSB Santa Barbara Corpus (EN manual timestamped TRN). Fixed public metadata downloads use narrow scoped requests; generic curl requests were auto-review rejected. LUNA official archive is 1,171,789,169 bytes and ignores Range; agent is reading only a bounded 64 MiB prefix for WAV/TRS feasibility, not the whole corpus. Determine actual durations/access/annotation suitability before any quality claim. Root owns release/progress/ticket/GitHub records. Scaffold agent owns final browser report/setup docs; jobs agent completed configurable cancellation checker + 6 fast tests. No separate user-owned chats.
+All media, annotations and raw results remain in `/private/tmp/localscribe-reference-research/`:
 
-Representative quality/challenge/performance/stability gates remain required; no pending gate is complete. Do not repeat obsolete credential/access blockers. A request for user recording paths is pending, while public reference acquisition remains useful independent work.
+| Input | Evidence / remaining limit |
+| --- | --- |
+| SpokesBiz LUZ, 1801.301 s | Natural two-speaker Polish conversation; possible 30-minute performance input. |
+| SpokesBiz BIO, 3752.384 s | Natural two-speaker interview; backup long input. |
+| `pl-luz-000000-582590.wav` and `-reference.json` | Predeclared 582.59 s window, 100 complete human-corrected segments. Automatic speaker alignment is diagnostic, ineligible for the hand-labelled 90% gate. |
+| English SBC005 | Prepared 300.89 s window (source 374.19–675.08), 721 normalized manual words, zero indecipherable text, two uncertain spans and audit clips. Earlier window was abandoned before inference after an indexed-overlap parser correction. Intonation units are not gold speech turns. |
+| AMI EN2009d | Complete official CC BY 4.0 WAV acquired: 5324.373 s, 170379992 bytes, SHA eeb4a5ff47cadba8c75bdf32213b9264805027faa943c7f55eec0423c6ea4312. No inference yet. |
+| `instrumental-piano-30s.wav` | Actual CC0 studio piano, empty speech reference and provenance; needs model challenge run. No manual-audition claim. |
+
+The fixed-source Polish download/preparation CLI and four passing conversion tests are committed. Alignment owns `docs/research/reference-corpora.md`; genuine three-speaker SBC003 source window 540–660 s is ready externally as `en-sbc003-0540000-0660000-three-speaker.wav` with manifests. It has lexical overlap, but intonation-unit timestamps remain diagnostic. Scaffold is promoting audited English preparation to a repository CLI and parser regression tests. Agents must not run models.
+
+## Next steps
+
+1. Finish the private 62-minute run; inspect sanitized timing, warnings, peak RSS and sampled pressure. Do not declare a pass from an unfinished process.
+2. Run Fast and Quality sequentially on the Polish 582.59 s and English 300.89 s references. Score immutable original text with the fixed policy; disclose the English uncertain word and unaudited speaker boundaries.
+3. Select the profile only after both language comparisons. Run representative 30-minute LUZ performance with that profile, then genuine three-speaker/overlap/music/silence challenges. Repeat performance if the selected profile changes.
+4. Commit reproducible public-reference tools and sanitized results, synchronize release evidence and LS-012. Never lower 15% WER or 90% attribution thresholds. The remaining independent manual reference audits must be resolved before release.
+
+The long private input has no corrected text or speaker reference. The earlier request for recording paths can be narrowed to remaining manual audits after measured diagnostics. Do not repeat obsolete model-access blockers or substitute repeated voices for natural quality/performance evidence. Goal is not complete.
