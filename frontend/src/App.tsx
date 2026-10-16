@@ -16,20 +16,24 @@ function ImportForm({ health, onImported }: { health: Health | null; onImported:
   const selectedReady = Boolean(health?.models[options.profile]?.ready);
   const diarizationReady = !options.diarization || Boolean(health?.models.diarization?.ready);
   const toolsReady = Boolean(health?.dependencies.ffmpeg && health?.dependencies.ffprobe);
+  function rejectFile(message: string) {
+    setFile(null); if (input.current) input.current.value = ''; setError(message);
+  }
   function choose(next: File | undefined) {
+    if (busy) return;
     setError('');
     if (!next) return;
-    if (next.size === 0) { setError('This file is empty. Choose an audio or video recording.'); return; }
-    if (next.size > 2 * 1024 ** 3) { setError('The file exceeds the 2 GiB import limit.'); return; }
+    if (next.size === 0) { rejectFile('This file is empty. Choose an audio or video recording.'); return; }
+    if (next.size > 2 * 1024 ** 3) { rejectFile('The file exceeds the 2 GiB import limit.'); return; }
     setFile(next);
   }
   function drop(event: DragEvent) {
-    event.preventDefault(); setDragging(false);
-    if (event.dataTransfer.files.length !== 1) { setError('Choose one recording per import.'); return; }
+    event.preventDefault(); setDragging(false); if (busy) return;
+    if (event.dataTransfer.files.length !== 1) { rejectFile('Choose one recording per import.'); return; }
     choose(event.dataTransfer.files[0]);
   }
   async function submit(event: FormEvent) {
-    event.preventDefault(); if (!file) return;
+    event.preventDefault(); if (!file || busy) return;
     setBusy(true); setError(''); setProgress({ loaded: 0, total: null });
     try { const job = await api.import(file, options, setProgress); setFile(null); if (input.current) input.current.value = ''; onImported(job); }
     catch (error) { setError(messageOf(error)); } finally { setBusy(false); setProgress(null); }
@@ -37,7 +41,7 @@ function ImportForm({ health, onImported }: { health: Health | null; onImported:
   return <section className="panel import-panel" aria-labelledby="import-title">
     <div className="section-heading"><div><span className="eyebrow">NEW RECORDING</span><h2 id="import-title">Import a recording</h2></div><span className="tag">Up to 2 GiB · 2 hours</span></div>
     <form onSubmit={submit}>
-      <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={drop}>
+      <div className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={event => { event.preventDefault(); if (!busy) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={drop}>
         <span className="upload-icon" aria-hidden="true">↥</span>
         <strong>{file ? file.name : 'Drop your recording here'}</strong>
         <span>{file ? sizeLabel(file.size) : 'WAV, MP3, M4A, FLAC, OGG, MP4 or MOV'}</span>
@@ -68,22 +72,24 @@ function Readiness({ health, error, onRefresh }: { health: Health | null; error:
     <div><strong><span className={`status-dot ${health?.ready ? 'ready' : ''}`} />{health ? health.ready ? 'Local engine ready' : 'Setup needed' : 'Checking local engine…'}</strong><span className="muted">{health?.storage ? `${(health.storage.availableBytes / 1024 ** 3).toFixed(1)} GB available` : 'Everything runs on this Mac'}</span></div>
     <div className="readiness-items">{items.map(([label, ready]) => <span key={label} className={ready ? 'check-good' : 'check-missing'}>{ready ? '✓' : '○'} {label}</span>)}<button type="button" className="text-button" onClick={onRefresh}>Refresh</button></div>
     {error && <p role="alert" className="notice error">{error}</p>}
-    {health && !health.ready && <p className="readiness-help">Run the explicit model setup and <code>make doctor</code> from the repository. Runtime never downloads models.</p>}
+    {health && !health.ready && <p className="readiness-help">{health.worker?.running === false ? health.worker.message || 'Local worker stopped. Restart the application to recover interrupted work.' : <>Run the explicit model setup and <code>make doctor</code> from the repository. Runtime never downloads models.</>}</p>}
   </section>;
 }
 
-function TranscriptEditor({ job, transcript, onSaved }: { job: Job; transcript: Transcript; onSaved: (value: Transcript) => void }) {
+function TranscriptEditor({ job, transcript, onSaved, onDirtyChange }: { job: Job; transcript: Transcript; onSaved: (value: Transcript) => void; onDirtyChange: (dirty: boolean) => void }) {
   const [texts, setTexts] = useState<Record<string, string | null>>({}); const [names, setNames] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false); const [feedback, setFeedback] = useState(''); const [saveError, setSaveError] = useState('');
   const [time, setTime] = useState(0); const audio = useRef<HTMLAudioElement>(null);
   const dirty = Object.keys(texts).length > 0 || Object.keys(names).length > 0;
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
   useEffect(() => {
     const handler = (event: BeforeUnloadEvent) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } };
     window.addEventListener('beforeunload', handler); return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
   async function save() {
     setSaving(true); setSaveError(''); setFeedback('');
-    try { const saved = await api.save(job.id, transcript.revision, texts, names); onSaved(saved); setTexts({}); setNames({}); setFeedback('Changes saved. All exports use this saved version.'); }
+    try { const saved = await api.save(job.id, transcript.revision, texts, names); onSaved(saved); setTexts({}); setNames({}); onDirtyChange(false); setFeedback('Changes saved. All exports use this saved version.'); }
     catch (error) { setSaveError(messageOf(error)); } finally { setSaving(false); }
   }
   function seek(value: number) { if (audio.current) { audio.current.currentTime = value; setTime(value); } }
@@ -102,7 +108,7 @@ function TranscriptEditor({ job, transcript, onSaved }: { job: Job; transcript: 
   </div>;
 }
 
-function JobDetail({ id, onChange, onDeleted }: { id: string; onChange: () => void; onDeleted: () => void }) {
+function JobDetail({ id, onChange, onDeleted, onDirtyChange }: { id: string; onChange: () => void; onDeleted: () => void; onDirtyChange: (dirty: boolean) => void }) {
   const [job, setJob] = useState<Job | null>(null); const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [deleting, setDeleting] = useState(false); const [confirmRetry, setConfirmRetry] = useState(false);
   const terminalLoaded = useRef(false); const [reload, setReload] = useState(0);
@@ -129,7 +135,7 @@ function JobDetail({ id, onChange, onDeleted }: { id: string; onChange: () => vo
   }
   async function remove() {
     setBusy(true); setError('');
-    try { await api.delete(id); onDeleted(); } catch (error) { setError(messageOf(error)); setBusy(false); setDeleting(false); setTranscript(null); api.job(id).then(setJob).catch(() => { /* Keep the deletion failure visible if status cannot be refreshed. */ }); }
+    try { await api.delete(id); onDirtyChange(false); onDeleted(); } catch (error) { setError(messageOf(error)); setBusy(false); setDeleting(false); setTranscript(null); api.job(id).then(setJob).catch(() => { /* Keep the deletion failure visible if status cannot be refreshed. */ }); }
   }
   return <section className="panel detail-panel" aria-labelledby="detail-title">
     {!job ? <><h2 id="detail-title">Recording</h2><p>{error || 'Loading recording…'}</p>{error && <button className="button secondary" onClick={() => setReload(current => current + 1)}>Try again</button>}</> : <>
@@ -139,10 +145,10 @@ function JobDetail({ id, onChange, onDeleted }: { id: string; onChange: () => vo
       {job.error && <p role="alert" className="notice error"><strong>{job.error.code === 'interrupted' ? 'Processing was interrupted. ' : ''}</strong>{job.error.message}</p>}
       {[...(job.warnings || []), ...(transcript?.warnings || [])].filter((warning, index, warnings) => warnings.findIndex(other => other.code === warning.code && other.message === warning.message) === index).map(warning => <p key={warning.code} className="notice warning">{warning.message}</p>)}
       {error && <p role="alert" className="notice error">{error}</p>}
-      {transcript && <TranscriptEditor key={id} job={job} transcript={transcript} onSaved={setTranscript} />}
+      {transcript && <TranscriptEditor key={id} job={job} transcript={transcript} onSaved={setTranscript} onDirtyChange={onDirtyChange} />}
       {!activeStatuses.has(job.status) && <div className="job-actions">{['failed', 'cancelled'].includes(job.status) && <button className="button secondary" disabled={busy} onClick={() => setConfirmRetry(true)}>Retry job</button>}<button className="text-button danger" disabled={busy} onClick={() => setDeleting(true)}>{['deleting', 'deletion_failed'].includes(job.status) ? 'Retry deletion' : 'Delete recording'}</button></div>}
       {confirmRetry && <div className="confirmation" role="alertdialog" aria-labelledby="retry-title"><h3 id="retry-title">Retry this recording?</h3><p>A new attempt uses the same model settings. A successful replacement discards any previous text and speaker-name edits.</p><button className="button secondary" onClick={() => setConfirmRetry(false)}>Keep current result</button><button className="button primary" disabled={busy} onClick={() => action('retry')}>Retry recording</button></div>}
-      {deleting && <div className="confirmation" role="alertdialog" aria-labelledby="delete-title"><h3 id="delete-title">Delete this recording permanently?</h3><p>This removes the original media, playback audio, transcript, edits and all attempts from this Mac. Shared models remain available.</p><button className="button secondary" onClick={() => setDeleting(false)} disabled={busy}>Keep recording</button><button className="button destructive" onClick={remove} disabled={busy}>{busy ? 'Deleting…' : 'Delete permanently'}</button></div>}
+      {deleting && <div className="confirmation" role="alertdialog" aria-labelledby="delete-title"><h3 id="delete-title">Delete this recording permanently?</h3><p>This permanently deletes “<strong>{job.name}</strong>”, including its original media, playback audio, transcript, edits and all attempts from this Mac. Shared models remain available.</p><button className="button secondary" onClick={() => setDeleting(false)} disabled={busy}>Keep recording</button><button className="button destructive" onClick={remove} disabled={busy}>{busy ? 'Deleting…' : 'Delete permanently'}</button></div>}
     </>}
   </section>;
 }
@@ -150,17 +156,35 @@ function JobDetail({ id, onChange, onDeleted }: { id: string; onChange: () => vo
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null); const [healthError, setHealthError] = useState('');
   const [jobs, setJobs] = useState<Job[]>([]); const [total, setTotal] = useState(0); const [listError, setListError] = useState(''); const [selected, setSelected] = useState<string | null>(selectedHash);
+  const dirtyDraft = useRef(false); const acceptedHash = useRef(window.location.hash); const historyPages = useRef(1);
+  const onDirtyChange = useCallback((dirty: boolean) => { dirtyDraft.current = dirty; }, []);
   const refreshHealth = useCallback(() => { setHealthError(''); api.health().then(setHealth).catch(error => setHealthError(messageOf(error))); }, []);
-  const refreshJobs = useCallback(() => { api.jobs().then(result => { setJobs(result.jobs); setTotal(result.total); setListError(''); }).catch(error => setListError(messageOf(error))); }, []);
-  useEffect(() => { refreshHealth(); refreshJobs(); const handler = () => { setSelected(selectedHash()); window.scrollTo(0, 0); }; window.addEventListener('hashchange', handler); return () => window.removeEventListener('hashchange', handler); }, [refreshHealth, refreshJobs]);
+  const refreshJobs = useCallback(() => {
+    const pageCount = historyPages.current;
+    Promise.all(Array.from({ length: pageCount }, (_, page) => api.jobs(page * 50))).then(results => {
+      if (pageCount !== historyPages.current) return;
+      setJobs(Array.from(new Map<string, Job>(results.flatMap(result => result.jobs).map(job => [job.id, job])).values()));
+      setTotal(results[0].total); setListError('');
+    }).catch(error => setListError(messageOf(error)));
+  }, []);
+  useEffect(() => { refreshHealth(); refreshJobs(); const handler = () => {
+      const nextHash = window.location.hash;
+      if (nextHash === acceptedHash.current) return;
+      if (dirtyDraft.current && !window.confirm('Discard unsaved transcript changes? Your last saved version will be kept.')) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + acceptedHash.current);
+        return;
+      }
+      dirtyDraft.current = false; acceptedHash.current = nextHash;
+      setSelected(selectedHash()); window.scrollTo(0, 0);
+    }; window.addEventListener('hashchange', handler); return () => window.removeEventListener('hashchange', handler); }, [refreshHealth, refreshJobs]);
   useEffect(() => { if (!jobs.some(job => activeStatuses.has(job.status))) return; const timer = setInterval(refreshJobs, 1000); return () => clearInterval(timer); }, [jobs, refreshJobs]);
   const select = (id: string) => { window.location.hash = `job=${encodeURIComponent(id)}`; };
   return <main>
     <header className="app-header"><a href="#" className="brand" aria-label="LocalScribe home"><span className="brand-symbol" aria-hidden="true">≋</span><span>LocalScribe</span></a><span className="privacy-note"><span className="status-dot ready" />Private on this Mac</span></header>
     <div className="page-intro"><span className="eyebrow">YOUR RECORDINGS, CLEARLY</span><h1>Make every conversation readable.</h1><p>Transcribe English and Polish recordings, follow the speakers, and make the words your own.</p></div>
     <Readiness health={health} error={healthError} onRefresh={refreshHealth} />
-    <div className="workspace"><aside className="panel history-panel"><div className="section-heading"><h2>Recordings</h2><span className="tag">{total}</span></div>{listError && <p role="alert" className="notice error">{listError}</p>}{jobs.length === 0 ? <p className="empty">Your recordings will appear here after import.</p> : <ul className="job-list">{jobs.map(job => <li key={job.id}><button className={selected === job.id ? 'selected' : ''} onClick={() => select(job.id)}><strong>{job.name}</strong><span>{readableStatus(job.status)}{job.warnings?.length && job.status === 'completed' ? ' with warnings' : ''}</span><small>{new Date(typeof job.createdAt === 'number' ? job.createdAt * 1000 : job.createdAt).toLocaleString()}</small></button></li>)}</ul>}{total > jobs.length && <button className="text-button" onClick={() => api.jobs(jobs.length).then(result => setJobs(current => [...current, ...result.jobs])).catch(error => setListError(messageOf(error)))}>Load older recordings</button>}<a href="#" className="button secondary new-recording">+ New recording</a></aside>
-      <div className="main-panel">{selected ? <JobDetail key={selected} id={selected} onChange={refreshJobs} onDeleted={() => { window.location.hash = ''; refreshJobs(); }} /> : <ImportForm health={health} onImported={job => { refreshJobs(); select(job.id); }} />}</div>
+    <div className="workspace"><aside className="panel history-panel"><div className="section-heading"><h2>Recordings</h2><span className="tag">{total}</span></div>{listError && <p role="alert" className="notice error">{listError}</p>}{jobs.length === 0 ? <p className="empty">Your recordings will appear here after import.</p> : <ul className="job-list">{jobs.map(job => <li key={job.id}><button className={selected === job.id ? 'selected' : ''} onClick={() => select(job.id)}><strong>{job.name}</strong><span>{readableStatus(job.status)}{job.warnings?.length && job.status === 'completed' ? ' with warnings' : ''}</span><small>{new Date(typeof job.createdAt === 'number' ? job.createdAt * 1000 : job.createdAt).toLocaleString()}</small></button></li>)}</ul>}{total > jobs.length && <button className="text-button" onClick={() => { historyPages.current += 1; refreshJobs(); }}>Load older recordings</button>}<a href="#" className="button secondary new-recording">+ New recording</a></aside>
+      <div className="main-panel">{selected ? <JobDetail key={selected} id={selected} onDirtyChange={onDirtyChange} onChange={refreshJobs} onDeleted={() => { window.location.hash = ''; refreshJobs(); }} /> : <ImportForm health={health} onImported={job => { refreshJobs(); select(job.id); }} />}</div>
     </div><footer>Runs locally. No cloud inference. No external assets. <span>LocalScribe MVP</span></footer>
   </main>;
 }

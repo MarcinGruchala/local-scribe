@@ -75,9 +75,10 @@ The separate replay script is `tests/browser-real-asr.cjs`. It assumes an alread
 
 ## Focused result-state checks
 
-Five additional checks passed in the same actual Chromium browser against the fixture-only server:
+Seven focused checks passed in the same actual Chromium browser against the fixture-only server:
 
 - Missing cached ASR assets displayed actionable setup guidance and disabled import.
+- Replacing a valid file with an empty selection or a multi-file drop cleared the prior file and disabled submission. A drop while an upload request was pending left the original visible filename unchanged.
 - Keyboard activation opened the real file picker and Enter submitted the form. A requested diarization failure completed with warnings, preserved the synthetic text, showed explicit unknown speaker labels, and did not invent overlap or named speakers.
 - A separate successful speaker fixture showed stable anonymous labels and the overlapping-speech indicator.
 - An intentionally disabled diarization fixture completed with `Text only` labels and no diarization-failure warning; provenance recorded `disabled`.
@@ -90,3 +91,22 @@ The deletion failure in this browser check is an HTTP/UI simulation; filesystem 
 The same unmocked, OS-offline application workflow also passed all nine checks with the public 12.12-second Polish FLEURS recording and forced `pl`. The actual child pipeline took 2.652 s (preparing 0.042 s; ASR 1.224 s), and submit-to-visible-result took 4.334 s. Normalized playback, timestamp seeking, saved edit/reload, all four independent downloads, and confirmed deletion succeeded. Chromium observed zero external requests and zero page errors. Speaker processing was explicitly disabled; this does not satisfy diarization or representative Polish quality gates.
 
 The replay script accepts `REAL_SAMPLE` and `REAL_LANGUAGE=en|pl` for these explicitly prepared public samples. It writes a sanitized language-specific result outside Git. The Polish raw result is `/private/tmp/localscribe-real/browser-real-asr-pl-results.json`.
+
+
+## Unsaved navigation and history regression
+
+Eleven focused actual-Chromium checks passed after adding the internal navigation guard. Declining the discard confirmation preserved the same current hash and unsaved text for browser Back, New recording, the home link, another history selection, and a direct fragment change. Accepting it navigated and retained the last saved server result. A successful save cleared the guard before navigation; no discard dialog appeared. The native `beforeunload` confirmation still protected refresh, and dismissing it retained the draft.
+
+Deleting a dirty disposable fixture used the in-app deletion confirmation, explicitly named the recording, and navigated after success without a second discard prompt. The confirmation's filename is rendered as escaped React text. An injected stopped-worker health response displayed the restart guidance.
+
+The history regression seeded 51 terminal jobs and one active deterministic child. Loading older history increased the visible count from 50 to 64 in the final run (two requested pages); repeated active-job polling preserved those loaded rows. Refresh now re-fetches the requested number of 50-row pages, and a stale shorter request cannot replace a longer loaded history. The fixture setup removes only its earlier terminal pagination fixtures before reseeding.
+
+Reproduce after the full fixture browser smoke has created completed picker/drop fixtures:
+
+```sh
+uv run python tests/browser_server.py --seed-pagination
+NODE_PATH=/private/tmp/localscribe-browser-runner/node_modules node tests/browser-navigation.cjs
+NODE_PATH=/private/tmp/localscribe-browser-runner/node_modules node tests/browser-states.cjs
+```
+
+These runners use only the fixture server and never invoke a model. The navigation runner cancels its active fixture child on exit. Its sanitized result is outside Git at `/private/tmp/localscribe-browser/browser-navigation-results.json`. The normal application and its model cache are untouched.

@@ -14,6 +14,7 @@ export type Health = {
   dependencies: Record<string, boolean>;
   models: { fast?: ModelReadiness; quality?: ModelReadiness; diarization?: ModelReadiness; message?: string };
   storage?: { availableBytes: number }; activeJob?: string | null;
+  worker?: { running: boolean; message: string | null } | null;
 };
 
 export class ApiError extends Error {
