@@ -98,3 +98,9 @@ A short challenge concatenated the two public FLEURS human recordings, PL then E
 The Quality/Auto probe on the identical constructed input also detected pl and omitted the English portion (19 deletions / 39 words, WER 48.718%; 4.178 s, peak RSS 3,715,563,520 bytes). Neither profile solved this short language-switch challenge; no default or acceptance threshold was changed to hide the result.
 
 The final actual Polish browser repeat additionally verified per-recording model references and full runtime provenance after the model-pinning fix. Cached snapshots changing between import, queue, retry or publication cannot silently change a recording: preflight/retry/publication reject mismatches with `model_revision_changed`. Restore the originally pinned assets before retrying.
+
+## Follow-up input validation
+
+A follow-up audit verified that the constructed mixed input's normalized PCM is byte-identical to the concatenation of the separately normalized PL and EN samples: 193,920 and 168,960 frames respectively, 362,880 total at 16 kHz. PCM payload SHA-256: `aa28d02322e0a69987bb23d5b860dfbf98e9cee1854946f11a42dceca1444c8f`. Both portions retain the same RMS/peak values as their single-language inputs. The observed English omission is therefore not caused by dropped or altered audio during fixture construction.
+
+The installed mlx-whisper 0.4.3 decoder explicitly rejects non-null `beam_size` with `NotImplementedError`; beam search is not an available alternative in this adapter. No decoding settings or acceptance thresholds were changed. The application had no active or stored jobs at this audit; Community-1 readiness remained false and no external Hugging Face credential was available. Representative conversation/reference prerequisites remain unresolved.
