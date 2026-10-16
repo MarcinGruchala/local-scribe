@@ -32,4 +32,4 @@ Test edit revision conflicts, invalid segment/name updates, and media ranges at 
 
 ## Completion record
 
-Not started.
+2026-10-16: Completed. Range playback/seeking/current segment, null/overlap display, saved text/name persistence/restart, revision conflicts, invalid/write-failure safety and immutable model result are verified at API/store/browser boundaries. Actual EN/PL playback/edit/reload also passed. See tests/test_api.py, tests/test_jobs.py and browser evidence.

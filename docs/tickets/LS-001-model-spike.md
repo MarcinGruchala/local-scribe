@@ -33,4 +33,4 @@ Run the actual spike on this Mac. Record package/model versions, stage time, dev
 
 ## Completion record
 
-Not started. No models were downloaded or measured during planning.
+2026-10-16: In progress. Real native MLX English/Polish inference and cached ASR-only OS-offline browser flows passed. Model/dependency revisions are pinned; license/provenance gaps are explicit. Community-1 download failed without authenticated access; real CPU turns and full offline diarization remain pending. Representative references and sustained-performance inputs remain unavailable. See docs/research/model-spike.md and docs/validation/mvp-release.md.

@@ -33,4 +33,4 @@ Use small redistributable/generated fixtures with and without audio. Test bounda
 
 ## Completion record
 
-Not started.
+2026-10-16: Completed. Real FFmpeg tests cover all seven supported formats, retained bytes, mono 16 kHz normalization, complete decoded-duration validation, corrupt/truncated/audio-free/size/duration/storage failures, bounded copying and cleanup. Readiness and option failures enqueue nothing. See tests/test_media.py and tests/test_api.py.

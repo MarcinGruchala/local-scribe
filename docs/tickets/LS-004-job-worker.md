@@ -33,4 +33,4 @@ Use child fixtures that pause at explicit synchronization points to test cancel/
 
 ## Completion record
 
-Not started.
+2026-10-16: Completed. Persistent FIFO claims, short transactions, process registration gate, identity-checked survivor recovery, process-group termination, guarded publication, retry and deletion races pass deterministic tests. Actual ASR cancellation prevented publication and retry completed attempt 2. See docs/validation/lifecycle.md.

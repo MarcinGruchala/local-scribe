@@ -110,3 +110,5 @@ NODE_PATH=/private/tmp/localscribe-browser-runner/node_modules node tests/browse
 ```
 
 These runners use only the fixture server and never invoke a model. The navigation runner cancels its active fixture child on exit. Its sanitized result is outside Git at `/private/tmp/localscribe-browser/browser-navigation-results.json`. The normal application and its model cache are untouched.
+
+After the final model-pinning/provenance fix, all nine real Polish browser checks passed again under the OS offline policy. The recording and transcript preserved the imported Fast repository/revision, runtime package versions and FFmpeg provenance were present, and saved edits/export/deletion remained valid. This repeat recorded child total 2.387 s (ASR 1.053 s) and browser submit-to-result 3.327 s. It confirms the final contract, not a new quality/performance gate.

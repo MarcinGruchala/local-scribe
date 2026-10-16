@@ -20,7 +20,7 @@ make doctor
 
 Review the [Community-1 conditions](https://huggingface.co/pyannote/speaker-diarization-community-1) yourself. LocalScribe never accepts them for you. Download tokens belong only in your shell/credential store, never the UI, Git, or issue comments. Do not include a token in a command argument. Unset `HF_TOKEN` after setup. Downloads happen only through `make models`; startup never downloads weights.
 
-`model-lock.json` records exact model revisions. Local manifests record SHA-256 hashes for each asset. The Fast profile is provisional pending reference measurements; the Quality profile must not be considered validated merely because its weights exist. See [model spike](docs/research/model-spike.md).
+`model-lock.json` records exact model revisions. Local manifests record SHA-256 hashes for each asset. The Fast profile is provisional pending reference measurements; the Quality profile requires an explicit compatibility spike before it is enabled; representative quality remains unverified for both profiles. See [model spike](docs/research/model-spike.md).
 
 ## Start
 

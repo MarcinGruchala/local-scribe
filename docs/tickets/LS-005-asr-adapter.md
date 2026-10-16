@@ -33,4 +33,4 @@ Test adapter mapping and validation with fixtures in the fast suite. Run actual 
 
 ## Completion record
 
-Not started.
+2026-10-16: Completed. Actual human EN/PL recordings produce their source languages and finite validated timestamps; Polish diacritics and Auto detection verified offline. Local snapshots/provenance, forced task=transcribe, missing/corrupt assets and cancellation covered. Real ASR-only browser editing/export/deletion succeeds. Representative WER gates remain LS-012. See docs/research/model-spike.md.

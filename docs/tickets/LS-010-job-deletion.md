@@ -32,4 +32,4 @@ Use temporary data roots with two jobs and a shared model fixture. Inject a file
 
 ## Completion record
 
-Not started.
+2026-10-16: Completed. Confirm-dismiss preserves work; confirmed deletion removes source/normalized/results/edits/attempts/metadata. Active rejection, retry/delete race, partial filesystem failure/restart reconciliation and shared-model/other-job preservation are tested. Real ASR browser deletion passed. See lifecycle/browser evidence.

@@ -34,4 +34,4 @@ Unit-test alignment and assembly against hand-authored words/turns. Use an injec
 
 ## Completion record
 
-Not started.
+2026-10-16: In progress. Deterministic assignment, missing-word fallback, explicit disabled mode and injected diarization-failure text retention pass tests. Browser degraded-result/unknown-label/overlap states pass. Actual recurring speaker IDs and full cached offline Community-1 remain blocked on user-managed gated access; never accepted conditions for the user.

@@ -33,4 +33,4 @@ Use a lightweight API smoke test for health, origin/session protection, and migr
 
 ## Completion record
 
-Not started.
+2026-10-16: Completed. Locked Python/React/Vite application builds and serves same-origin UI/API; loopback host/origin/session protection, migrations, duplicate-owner lock and missing-model startup are tested. Separate clean core/model environments installed offline from cached lock. See tests/test_scaffold.py and docs/validation/browser-smoke.md.

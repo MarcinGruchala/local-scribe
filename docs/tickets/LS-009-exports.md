@@ -31,4 +31,4 @@ Test timestamp rounding, Unicode/Polish diacritics, multiline text, null speaker
 
 ## Completion record
 
-Not started.
+2026-10-16: Completed. TXT/SRT/VTT/JSON use one saved revision including intentional empty edits, Unicode and names. Independent subtitle parsers validate cues; JSON retains raw/edit/provenance/turn data. Empty/degraded cases pass tests; all four real browser downloads pass. See tests/test_exports.py and browser evidence.

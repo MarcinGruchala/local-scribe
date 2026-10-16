@@ -34,4 +34,4 @@ Exercise setup in a clean isolated environment and normal use with network disab
 
 ## Completion record
 
-Not started.
+2026-10-16: In progress. Locked explicit setup, pinned snapshots/hash manifests, local-only startup, telemetry/offline flags, credential-free children, redacted doctor, default data/cache locations and single launcher are implemented. Cached dependencies install cleanly and ASR-only OS-offline runs pass. Full clean gated model setup and ASR+diarization offline run await Community-1 access.

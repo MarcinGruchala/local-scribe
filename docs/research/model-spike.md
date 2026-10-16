@@ -1,34 +1,68 @@
 # Local model compatibility spike
 
-Date: 2026-10-16. Status: in progress; no release gate is implied by successful imports.
+Date: 2026-10-16. Status: **ASR compatibility passed; full pipeline spike incomplete.** No release-quality gate is implied by these short measurements.
 
-## Observations
+## Inspected environment
 
-- Native arm64 CPython 3.11.6, FFmpeg/FFprobe available, approximately 194 GiB available at initial inspection.
-- The sandbox cannot expose Metal. An explicitly approved host-side import confirmed `mlx.metal.is_available() == True`.
-- Host-side imports of MLX, pyannote.audio, PyTorch, and torchcodec succeeded.
-- Locked set includes mlx 0.32.4, mlx-whisper 0.4.3, pyannote.audio 4.0.7, torch 2.14.1, torchcodec 0.17.0. `uv.lock` is the authoritative complete dependency list.
-- Explicit turbo provisioning is in progress; weights remain outside Git. No Community-1 credential/cache was detected at initial inspection. Its gated conditions remain a user action.
-- The public Whisper JFK smoke fixture was fetched outside Git from the upstream tests. SHA-256: `63a4b1e4c1dc655ac70961ffbf518acd249df237e5a0152faae9a4a836949715`. It is a compatibility input, not a representative bilingual or speaker-quality reference.
+Host: Apple M5 Pro, 64 GiB RAM, native arm64 CPython 3.11.6, FFmpeg/FFprobe available. The ordinary execution sandbox cannot expose Metal. Explicitly approved host execution and the external-network-denial validation sandbox both confirmed Metal availability. Host imports of MLX, pyannote.audio, PyTorch, and torchcodec succeeded. An actual offline pyannote Audio/torchcodec decode of normalized PL audio returned mono 16 kHz, 193,920 finite frames. Actual Community-1 model inference has not run.
+
+The lock includes mlx 0.32.4, mlx-whisper 0.4.3, pyannote.audio 4.0.7, torch 2.14.1, torchaudio 2.11.0, and torchcodec 0.17.0. `uv.lock` is authoritative. Two separate clean environments installed the locked core and complete model dependency sets offline from cache. Fast tests remain independent of these model libraries.
+
+## Exact snapshots and provenance
+
+| Profile | Repository | Immutable revision | Result |
+| --- | --- | --- | --- |
+| Fast | `mlx-community/whisper-large-v3-turbo` | `a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb` | Explicitly downloaded; hash manifest; real EN/PL GPU inference offline |
+| Quality | `mlx-community/whisper-large-v3-mlx` | `49e6aa286ad60c14352c404340ded53710378a11` | Explicitly downloaded; hash manifest; real EN/PL GPU inference offline |
+| Speakers | `pyannote/speaker-diarization-community-1` | `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee` | Revision pinned; download failed without authenticated access; CPU pipeline still pending |
+
+`model-lock.json` pins repositories and revisions. External per-profile manifests contain each asset's SHA-256 and byte count. Provisioning is explicit; runtime verifies local files and never downloads. The optional Quality profile requires a successful explicit compatibility sidecar matching the exact snapshot. Neither profile is accepted against representative quality references yet.
+
+The turbo MLX conversion card had no explicit license metadata in planning; [upstream turbo](https://huggingface.co/openai/whisper-large-v3-turbo) declares MIT. Preserve [conversion provenance](https://huggingface.co/mlx-community/whisper-large-v3-turbo) rather than inventing its license field. The [large-v3 conversion](https://huggingface.co/mlx-community/whisper-large-v3-mlx) declares MIT while the [upstream large-v3 card](https://huggingface.co/openai/whisper-large-v3) identifies Apache-2.0; these notices are not flattened into a single invented claim. [Community-1](https://huggingface.co/pyannote/speaker-diarization-community-1) is CC-BY-4.0 with user-owned gated acceptance.
+
+## Actual smoke results
+
+The public upstream Whisper JFK sample is 11.00 s. SHA-256: `63a4b1e4c1dc655ac70961ffbf518acd249df237e5a0152faae9a4a836949715`. The initial Fast run took 15.359 s (peak RSS 1,922,449,408 bytes), and a second OS-offline run took 2.725 s (1,897,381,888 bytes). English text and finite timestamps were returned. [Public FLEURS sample evidence](../validation/public-samples.md) records licenses/revisions/hashes for short actual human EN/PL inputs.
+
+| Input / profile | Duration | Total spike | Peak RSS | Result |
+| --- | --- | --- | --- | --- |
+| FLEURS PL / Fast, forced pl |12.12s |2.607s |1,908,539,392bytes | Polish with diacritics, valid timestamps |
+| FLEURS PL / Fast, Auto |12.12s |2.556s |1,910,538,240bytes | Detects pl |
+| FLEURS EN / Fast, forced en |10.56s |2.325s |1,908,244,480bytes | English, valid timestamps |
+| FLEURS PL / Quality, forced pl |12.12s |4.328s |3,669,344,256bytes | Polish, valid timestamps |
+| FLEURS EN / Quality, forced en |10.56s |3.597s |3,704,586,240bytes | English, valid timestamps |
+
+Each run starts a fresh process. They use identical normalized audio and decoding settings within each language. Filesystem/runtime caches are warm; the values do not establish representative cold/warm performance. The normal offline application also passed actual English and Polish browser import/play/edit/export/delete workflows and real ASR cancellation/retry. See [browser evidence](../validation/browser-smoke.md) and [lifecycle evidence](../validation/lifecycle.md).
+
+The unguarded model hallucinated 10 non-whitespace characters on 5 seconds of digital silence. A bounded correction recognizes exact PCM zeros and returns an empty transcript without loading the model; even one nonzero sample remains eligible for inference. The corrected offline check returned zero segments and an empty-result notice. This does not filter quiet speech, noise or music; those challenge cases remain pending. Full details and the retained initial failure are in [release evidence](../validation/mvp-release.md).
 
 ## Reproduction
 
 ```sh
 make setup
+make build
 make models PROFILE=fast
-# User accepts Community-1 terms and configures an external download credential.
+make models PROFILE=quality
+# The user personally accepts Community-1 terms and configures an external read token.
 make models PROFILE=diarization
 make doctor
-uv run --frozen --no-sync localscribe-spike /absolute/sample.flac \
-  --output /absolute/private-results/spike.json --language en --diarization
+.venv/bin/python scripts/fetch-fleurs-samples.py --output /private/tmp/localscribe-validation
+/usr/bin/sandbox-exec -f scripts/offline.sb .venv/bin/python -m localscribe.spike \
+  /private/tmp/localscribe-validation/fleurs-pl.wav \
+  --output /private/tmp/localscribe-validation/fleurs-pl-fast-offline.json --language pl
+# Repeat with --profile quality; add --diarization only after its assets/access are ready.
 ```
 
-Outputs contain private model text and belong outside the checkout. Console summaries contain counts/timing/language only. Stages run sequentially, ASR caches are released before CPU speaker inference, and the model child exits after each attempt. All model loading uses hash-checked local snapshots. HF offline and telemetry settings are set before model-library imports. Runtime removes download credentials from child environments.
+`doctor --asr-only` is available for intentional text-only use while speaker assets are absent. Private outputs are refused inside the checkout. Console summaries contain counts/language/timing only. Inference snapshots load locally under offline/telemetry flags; the worker removes HF token environment variables. The OS sandbox denies external network connections for the entire app process hierarchy while retaining loopback and Metal. Flags alone are not the offline proof.
 
-## Provisional choice and pending gates
+## Recommendation and unresolved evidence
 
-Keep the accepted MLX turbo candidate and Community-1 CPU baseline pending actual inference. Large-v3 is a comparison candidate, not an accepted Quality profile. Do not expose it until its compatibility/quality comparison evidence is recorded.
+Retain Fast as the provisional default and Quality as a verified compatibility alternative. Do not change the accepted default on a handful of read-speech words. Both profiles scored PL 0/20 and EN 2/19 errors on these same tiny references. Representative English, Polish, mixed-language and speaker quality are **pending references**. Small public samples cannot certify the 15% WER or 90% speaker-attribution thresholds.
 
-Actual ASR timing/timestamp evidence, actual Community-1 regular/exclusive turns, a second network-disabled run, English/Polish/mixed-language quality, speaker accuracy, cold/warm timings, peak memory, sustained memory pressure, 30-minute performance, and 60-minute stability remain pending. Corrected user-approved references are unavailable. Successful library imports are not inference evidence.
+Keep the accepted Community-1 CPU baseline pending user access and actual regular/exclusive turn evidence. No gated terms were accepted for the user. Full cached offline ASR+diarization, transitive-asset verification, representative 30 minute RTF/memory pressure, approximately 60 minute stability, and corrected two-speaker references remain pending. There is no evidence of an MLX compatibility failure requiring whisper.cpp fallback.
 
-The turbo MLX conversion card has no explicit license metadata in the planning research; upstream turbo is MIT. Preserve the [upstream model provenance](https://huggingface.co/openai/whisper-large-v3-turbo) and [conversion card](https://huggingface.co/mlx-community/whisper-large-v3-turbo). Community-1 is CC-BY-4.0; [its model card](https://huggingface.co/pyannote/speaker-diarization-community-1) documents user acceptance and local loading. Conversion provenance/license gaps remain explicit rather than asserting a license for someone else's conversion.
+## Constructed language-switch observation
+
+The public PL then EN utterances were concatenated into 22.68 s of actual human speech solely for a short language-switch probe. Fast/Auto detected pl and omitted the English portion (19 deletions / 39 reference words, combined WER 48.718%). This failure remains visible and does not become a passed mixed-language gate. Quality is evaluated on the same input; manually corrected representative multilingual conversation references are still pending.
+
+The Quality/Auto probe on the identical constructed input also detected pl and omitted the English portion (19 deletions / 39 words, WER 48.718%; 4.178 s, peak RSS 3,715,563,520 bytes). Neither profile solved this short language-switch challenge; no default or acceptance threshold was changed to hide the result.

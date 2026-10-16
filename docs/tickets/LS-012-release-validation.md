@@ -35,4 +35,4 @@ Use the specification's normalization/scoring policy and report fixture duration
 
 ## Completion record
 
-Not started. Planning produced no measured performance or quality evidence.
+2026-10-16: Incomplete release gate. Sanitized acceptance matrix records functional and short real EN/PL ASR evidence separately from pending quality/speaker/performance results. Full Community-1/offline evidence, approved corrected 5–10 minute two-speaker references, challenge cases, 30 minute performance and 60 minute stability inputs remain missing. See docs/validation/mvp-release.md. No pending gate is labelled passed.

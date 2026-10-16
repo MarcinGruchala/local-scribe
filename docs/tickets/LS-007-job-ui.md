@@ -33,4 +33,4 @@ Run a browser flow against deterministic adapters for pending, active, failed, c
 
 ## Completion record
 
-Not started.
+2026-10-16: Completed. Actual Chromium verifies picker/drop, measured upload progress, model-specific readiness, refresh-safe stages/history, terminal polling stop, cancel/retry, degraded text, keyboard controls, narrow layouts and local-only resources. Real EN/PL ASR-only browser workflows additionally pass. See docs/validation/browser-smoke.md.
