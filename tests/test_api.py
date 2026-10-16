@@ -127,3 +127,13 @@ def test_bad_options_and_missing_models_do_not_queue(client):
     assert response.json()["error"]["code"] == "model_not_ready"
     assert client.app.state.jobs.list()["total"] == 0
     assert not list(client.app.state.storage.imports_root.iterdir())
+
+
+def test_stopped_supervised_worker_reports_actionable_readiness(client):
+    from types import SimpleNamespace
+
+    client.app.state.worker = SimpleNamespace(alive=False)
+    result = client.get("/api/health").json()
+    assert result["ready"] is False
+    assert result["worker"]["running"] is False
+    assert "Restart the application" in result["worker"]["message"]

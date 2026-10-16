@@ -76,6 +76,8 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
         ffprobe = shutil.which("ffprobe")
         disk = shutil.disk_usage(settings.data_root)
         models = app.state.readiness()
+        worker = getattr(app.state, "worker", None)
+        worker_running = worker is None or worker.alive
         active = next(
             (
                 job["id"]
@@ -87,14 +89,19 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
         )
         return {
             "status": "ok",
-            "ready": bool(ffmpeg and ffprobe and models["fast"]["ready"]),
+            "ready": bool(ffmpeg and ffprobe and models["fast"]["ready"] and worker_running),
             "dependencies": {"ffmpeg": bool(ffmpeg), "ffprobe": bool(ffprobe)},
             "models": models,
             "runtime": {"python": platform.python_version(), "architecture": platform.machine()},
             "storage": {"availableBytes": disk.free},
             "activeJob": active,
-            "worker": {
-                "running": bool(getattr(getattr(app.state, "worker", None), "alive", False))
+            "worker": None
+            if worker is None
+            else {
+                "running": worker.alive,
+                "message": None
+                if worker.alive
+                else "Local worker stopped. Restart the application to recover interrupted work.",
             },
         }
 

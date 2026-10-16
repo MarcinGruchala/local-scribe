@@ -134,3 +134,11 @@ def test_raw_turn_labels_and_diagnostics_are_preserved():
 def test_text_without_timestamped_segments_is_not_reported_as_silence():
     with pytest.raises(ValueError, match="timestamped"):
         assemble({"text": "Recognized speech", "segments": []}, [], [], 10, "job", {})
+
+
+@pytest.mark.parametrize("requested,detected", [("auto", "pl"), ("pl", None), ("en", None)])
+def test_forced_language_is_not_reported_as_model_detection(requested, detected):
+    result = assemble({"language": "pl", "segments": []}, [], [], 1, "job", {"language": requested})
+    assert result["requestedLanguage"] == requested
+    assert result["detectedLanguage"] == detected
+    assert result["language"] == "pl"

@@ -185,7 +185,7 @@ def assemble(
             "duration": duration,
             "language": asr.get("language"),
             "requestedLanguage": settings["language"],
-            "detectedLanguage": asr.get("language"),
+            "detectedLanguage": asr.get("language") if settings["language"] == "auto" else None,
             "options": settings,
             "originalText": asr.get("text", "".join(item["text"] for item in model_segments)),
             "segments": segments,
