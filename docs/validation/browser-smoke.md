@@ -69,7 +69,7 @@ The missing diarization model correctly disabled submission with the default spe
 | Browser submit-to-visible-result | 3.332 s |
 | Diarization | Explicitly disabled; required cached asset unavailable |
 
-These short-sample timings are functional evidence only. They do not measure a representative 30-minute performance target, WER, speaker-attribution accuracy, cold/warm profile comparison, or memory pressure. Cached English ASR is verified through the application under the offline sandbox; cached English/Polish inference with diarization remains a separate release requirement.
+These short-sample timings are functional evidence only. They do not measure a representative 30-minute performance target, WER, speaker-attribution accuracy, cold/warm profile comparison, or memory pressure. At this stage, cached English ASR was verified through the application under the offline sandbox. The later complete-model section below records the subsequent English/Polish runs with real diarization.
 
 The separate replay script is `tests/browser-real-asr.cjs`. It assumes an already running real server at port 8767, cached models, and the locally supplied public sample at `/private/tmp/localscribe-validation/jfk.flac`. Run it with the same `NODE_PATH` shown above after starting the real application under the documented offline gate. Do not start this run while another model job is active. It creates and explicitly deletes only its validation job. It logs sanitized timings and provenance, never the recognized transcript. The sanitized raw result is outside Git at `/private/tmp/localscribe-real/browser-real-asr-results.json`.
 
@@ -112,3 +112,46 @@ NODE_PATH=/private/tmp/localscribe-browser-runner/node_modules node tests/browse
 These runners use only the fixture server and never invoke a model. The navigation runner cancels its active fixture child on exit. Its sanitized result is outside Git at `/private/tmp/localscribe-browser/browser-navigation-results.json`. The normal application and its model cache are untouched.
 
 After the final model-pinning/provenance fix, all nine real Polish browser checks passed again under the OS offline policy. The recording and transcript preserved the imported Fast repository/revision, runtime package versions and FFmpeg provenance were present, and saved edits/export/deletion remained valid. This repeat recorded child total 2.387 s (ASR 1.053 s) and browser submit-to-result 3.327 s. It confirms the final contract, not a new quality/performance gate.
+
+
+## Complete cached ASR and diarization browser validation
+
+After the user personally accepted the Community-1 conditions and authorized the local Hugging Face CLI, explicit provisioning prepared the pinned speaker snapshot. Three complete real browser runs then passed sequentially against the normal application at `http://127.0.0.1:8767`. The application and all inference descendants ran under `scripts/offline.sb`, with external networking denied, an isolated `/private/tmp/localscribe-full-offline` data root and an empty `HF_HOME` at `/private/tmp/localscribe-no-hf-home`. The browser allowed only the application loopback origin. No fixture child, readiness override, remote inference, inference-response interception, or cached global Hugging Face account store was used for these runs.
+
+Each run passed nine actual-Chromium checks: complete readiness and default speaker-enabled import; real MLX GPU ASR plus Community-1 CPU diarization; normalized playback and timestamp seeking; persistent text and speaker-name edits through reload; independent TXT, SRT, VTT and JSON downloads; and named-confirmation deletion of only that run's new recording. Anonymous speaker IDs remained stable through editing/reload, and JSON retained unchanged regular and exclusive speaker turns. Both immutable model references matched job settings, requested provenance and actual engine provenance. Every run observed zero external browser requests and zero uncaught page errors.
+
+| Input | Requested/detected language | Duration | ASR stage | Diarization stage | Total child pipeline | Browser submit-to-result | Speakers; regular/exclusive turns | Warnings |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Public FLEURS English | en / en | 10.560 s | 1.445 s | 3.107 s | 6.201 s | 8.524 s | 1; 3 / 3 | None |
+| Public FLEURS Polish | pl / pl | 12.120 s | 1.215 s | 3.906 s | 6.768 s | 8.523 s | 1; 2 / 2 | None |
+| Constructed recurring voices A-B-A-B | auto / pl; exact-count hint 2 | 45.360 s | 2.396 s | 19.347 s | 23.214 s | 25.575 s | 2; 12 / 12 | `alignment_fallback` |
+
+The ASR engine was `mlx-whisper` on GPU, with `mlx-community/whisper-large-v3-turbo` revision `a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb`. Diarization used `pyannote.audio` on CPU, with `pyannote/speaker-diarization-community-1` revision `3533c8cf8e369892e6b79ff1bf80f7b0286a54ee`. Browser: Chromium 156.0.8078.4, driven by Playwright 1.64.1.
+
+The individual English and Polish samples each contain one voice. The constructed case concatenates the same public Polish and English voice samples in A-B-A-B order; it returned two stable anonymous IDs and five display segments. It is not a natural conversation or an independent reference-quality dataset. Its alignment warning remains part of the result; successful speaker-model execution must not hide fallback alignment. See [public sample provenance](public-samples.md).
+
+These results establish the complete functional cached-model browser workflow under external-network denial, including real speaker processing for both languages. They do not establish WER thresholds, 90% speaker-attributed reference duration, reliable overlap transcription, representative 30-minute runtime, sustained memory pressure or 60-minute stability. The stage times include normal fresh inference children with previously exercised filesystem/runtime caches; no cold-start or representative performance claim follows. Peak memory was not measured by these browser runners.
+
+Sanitized raw results remain outside Git:
+
+- `/private/tmp/localscribe-full-offline/browser-full-en-results.json`
+- `/private/tmp/localscribe-full-offline/browser-full-pl-results.json`
+- `/private/tmp/localscribe-full-offline/browser-full-abab-results.json`
+
+The reusable runner is `tests/browser-real-diarization.cjs`. Start the normal application under the offline policy with complete cached models, then run one language at a time while no other model job is active:
+
+```sh
+NODE_PATH=/private/tmp/localscribe-browser-runner/node_modules \
+  REAL_LANGUAGE=en REAL_CASE=en \
+  REAL_SAMPLE=/absolute/approved-english.wav \
+  REAL_OUTPUT_ROOT=/absolute/private-validation-results \
+  node tests/browser-real-diarization.cjs
+
+NODE_PATH=/private/tmp/localscribe-browser-runner/node_modules \
+  REAL_LANGUAGE=pl REAL_CASE=pl \
+  REAL_SAMPLE=/absolute/approved-polish.wav \
+  REAL_OUTPUT_ROOT=/absolute/private-validation-results \
+  node tests/browser-real-diarization.cjs
+```
+
+`REAL_BASE` overrides the loopback origin; `REAL_SPEAKER_COUNT` optionally supplies a valid count hint. `REAL_LANGUAGE=auto` is supported for a separately approved mixed-language case. The script never logs recognized text, refuses report output inside the checkout, and deletes only the validation job it created. The historical ASR-only runner deliberately tests missing-diarization readiness and remains separate from this complete-model runner. The normal validation application was left running after these checks.

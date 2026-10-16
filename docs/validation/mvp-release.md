@@ -1,12 +1,12 @@
 # LocalScribe MVP release evidence
 
-Date: 2026-10-16. **Release decision: NOT READY.** The application is runnable and its functional workflows are implemented. Real English and Polish ASR works offline. Required Community-1 diarization, representative conversation quality, and sustained performance evidence remain missing. This report does not certify the complete MVP.
+Date: 2026-10-16. **Release decision: NOT READY.** The application is runnable and its functional workflows are implemented. Real English and Polish ASR plus CPU Community-1 work offline, including playback, saved text/speaker edits, all exports and deletion. Representative conversation quality and sustained performance evidence remain missing. This report does not certify the complete MVP.
 
 ## Environment and reproducibility
 
 The inspected host reports Apple M5 Pro, 68,719,476,736 bytes (64 GiB) RAM, native arm64 CPython 3.11.6, and available FFmpeg/FFprobe. Metal is accessible in the host session and under the network-denial validation policy. The ordinary execution sandbox does not expose Metal; inference tests used explicitly approved host execution.
 
-`uv.lock` and `frontend/package-lock.json` pin dependencies. A separate clean core-only Python environment installed from the cached lock offline and passed the then-current 80 tests without model libraries. A second clean environment installed all 124 runtime/development/model packages from the same lock offline. This establishes reproducible dependency installation from cache, not successful gated model provisioning in a fresh account. Frontend build/TypeScript checks pass. Vite is pinned to 7.3.7; the recorded npm installation reported zero vulnerabilities.
+`uv.lock` and `frontend/package-lock.json` pin dependencies. A separate clean core-only Python environment installed from the cached lock offline and passed the then-current 80 tests without model libraries. A second clean environment installed all 124 runtime/development/model packages from the same lock offline. After the user personally accepted Community-1 and authenticated locally, the clean full environment independently provisioned its pinned snapshot into a fresh isolated model directory. Its 10-file hash manifest exactly matches the main cache, and full doctor passes. A new account still requires user-owned authorization. Frontend build/TypeScript checks pass. Vite is pinned to 7.3.7; the recorded npm installation reported zero vulnerabilities.
 
 `model-lock.json` pins all three candidate repositories. Local model manifests contain file sizes and SHA-256 hashes; weights and manifests remain in the external model cache. Runtime verifies local integrity and never requests downloads. Quality is hidden until a matching explicit compatibility spike succeeds. Compatibility success does not establish representative quality acceptance.
 
@@ -17,18 +17,18 @@ The inspected host reports Apple M5 Pro, 68,719,476,736 bytes (64 GiB) RAM, nati
 | FR-01: local loopback application | PASS | Normal launcher served the built UI/API at 127.0.0.1; security and single-instance tests reject invalid hosts/origins/tokens and duplicate owners. `tests/test_scaffold.py`; actual browser report. |
 | FR-02: validated bounded imports | PASS | All seven formats exercised with actual FFmpeg, byte/duration/storage/invalid-input failures and cleanup. Full audio decode validates duration before enqueue. Only supported local container/protocol inputs are permitted. `tests/test_media.py`, `tests/test_api.py`. |
 | FR-03: original-language EN/PL ASR | PASS, short samples | Actual human FLEURS EN and PL plus JFK; PL retains diacritics, automatic detection returns pl, forced language selects transcription. These do not establish the long-form WER gate. Model spike and public-sample reports. |
-| FR-04: recurring real speaker IDs | PENDING | Deterministic assignment implemented/tested; actual Community-1 access/assets unavailable. No synthetic IDs stand in for real recurring-voice evidence. |
+| FR-04: recurring real speaker IDs | PASS, functional | Actual Community-1 CPU runs return regular/exclusive turns on human EN/PL; a constructed PL–EN–PL–EN sample returns two recurring anonymous IDs. This does not pass the reference-attribution quality gate. [Diarization evidence](diarization.md). |
 | FR-05: valid timestamp/data contracts | PASS | Validated schemas, finite bounded intervals, explicit unknown attribution; actual EN/PL results assembled through this contract. `tests/test_contracts.py`, `tests/test_alignment.py`, real app flow. |
 | FR-06: playback and seeking | PASS | Every supported input normalizes to mono 16 kHz WAV; Chromium plays and seeks real/synthetic results, active segment follows time. Media/API tests and browser report. Safari/Firefox unverified. |
 | FR-07: persistent edits | PASS | Model data stays immutable; atomic revisions reject stale/invalid edits, restart/reload preserves saved text/names; browser draft survives 409 and injected 500. Jobs/API tests and browser report. |
 | FR-08: four saved exports | PASS | Independent SRT/VTT parsers, Unicode/empty/degraded cases, latest saved edits, all four actual browser downloads; JSON preserves original/edit/provenance/turn data. Export/API tests. |
 | FR-09: history and restart recovery | PASS | Completed/queued work and edits survive new store instances; interrupted attempts fail with retry; orphan/missing results reconciled. Lifecycle tests/report. |
-| FR-10: cancellation and retry | PASS | FIFO/claim and cancel/publish races, duplicate retry rejection, process-group termination and immutable attempts; actual browser controls. Real-model cancellation evidence recorded separately when run. |
-| FR-11: preserve ASR after speaker failure | PASS, injected failure | Pipeline test preserves text, explicit failed-speaker provenance/warning, null labels; focused Chromium degraded-result flow. Actual Community-1 inference remains pending. |
+| FR-10: cancellation and retry | PASS | FIFO/claim and cancel/publish races, duplicate retry rejection, process-group termination and immutable attempts; actual browser controls. Real-model ASR cancellation and CPU-diarization cancellation/retry both pass with no late result; [diarization evidence](diarization.md). |
+| FR-11: preserve ASR after speaker failure | PASS, injected failure | Pipeline test preserves text, explicit failed-speaker provenance/warning, null labels; focused Chromium degraded-result flow. Successful actual Community-1 is separately verified; failure preservation remains an injected-error check. |
 | FR-12: complete explicit deletion | PASS | Confirm dismiss/accept, active rejection, retry/delete race, partial-failure recovery, originals retained until deletion, shared assets preserved. Real ASR browser flow deletes owned job data. |
-| FR-13: full cached offline inference | PARTIAL | Actual EN and PL ASR-only application workflows succeed under OS external-network denial. Full ASR plus Community-1 offline run remains pending. |
+| FR-13: full cached offline inference | PASS | Actual EN and PL ASR plus CPU Community-1 browser workflows succeed under OS external-network denial and empty HF_HOME. Real labels/turns, playback, saved name/text edits, all exports and deletion pass with no observed external browser requests. [Browser evidence](browser-smoke.md), [model evidence](diarization.md). |
 
-Fast verification: `.venv/bin/python -m pytest -q` and `.venv/bin/ruff check backend tests scripts`; frontend: `make build`. The latest full suite passed 130 tests with no skips, including immutable model-reference checks; the final command result is recorded in implementation progress. Model tests remain explicit; fast checks require no weights, credentials, or network. See [lifecycle evidence](lifecycle.md) and [browser evidence](browser-smoke.md).
+Fast verification: `.venv/bin/python -m pytest -q` and `.venv/bin/ruff check backend tests scripts`; frontend: `make build`. The latest full suite passed 136 tests with no skips, including immutable model-reference checks; the final command result is recorded in implementation progress. Model tests remain explicit; fast checks require no weights, credentials, or network. See [lifecycle evidence](lifecycle.md) and [browser evidence](browser-smoke.md).
 
 ## Actual ASR measurements
 
@@ -56,25 +56,26 @@ The adapter now detects only exact zero-valued normalized PCM, skips model loadi
 
 ## Offline gate
 
-The application and every inference descendant ran under `scripts/offline.sb`, a macOS sandbox policy denying external networking while allowing loopback. A direct external socket connection was denied while Metal remained available. The browser additionally rejected any request outside its local app origin. Successful ASR runs required no download token and used hash-checked cached assets. Offline flags/telemetry settings are applied before inference imports; the worker removes HF token environment variables.
+The application and every inference descendant ran under `scripts/offline.sb`, a macOS sandbox policy denying external networking while allowing loopback. A direct external socket connection was denied while Metal remained available. The browser additionally rejected any request outside its local app origin. Successful ASR plus Community-1 runs required no download token and used hash-checked cached assets. Offline flags/telemetry settings are applied before inference imports; the worker removes HF token environment variables.
 
 Reproduce after explicit model setup, with no other model job active:
 
 ```sh
-/usr/bin/sandbox-exec -f scripts/offline.sb .venv/bin/python -m localscribe.launcher \
-  --data-root /private/tmp/localscribe-real --port 8767 --no-browser
-# Run tests/browser-real-asr.cjs with the browser dependency documented in browser-smoke.md.
-# For Polish: REAL_SAMPLE=/absolute/fleurs-pl.wav REAL_LANGUAGE=pl node tests/browser-real-asr.cjs
+HF_HOME=/private/tmp/localscribe-no-hf-home /usr/bin/sandbox-exec -f scripts/offline.sb \
+  .venv/bin/python -m localscribe.launcher \
+  --data-root /private/tmp/localscribe-full-offline --port 8767 --no-browser
+# Run tests/browser-real-diarization.cjs with NODE_PATH documented in browser-smoke.md.
+# For Polish: REAL_SAMPLE=/absolute/fleurs-pl.wav REAL_LANGUAGE=pl node tests/browser-real-diarization.cjs
 ```
 
-The remaining full offline gate must repeat startup, real ASR and Community-1, playback, edits, all exports, and deletion with all assets cached. An ASR-only result cannot satisfy it.
+Full real browser runs now pass nine checks each for EN and PL, with no mocks: default speaker-enabled import; source-language MLX GPU transcription; CPU Community-1 regular/exclusive turns; stable IDs; playback/seek; saved text/name edits and reload; four independent downloads; confirmed deletion. EN child total is 6.201 s (ASR 1.445 s, diarization 3.107 s), PL 6.768 s (ASR 1.215 s, diarization 3.906 s). Browser submit-to-result is 8.524 s and 8.523 s. Each had zero external-origin requests and zero uncaught page errors. These short functional passes do not establish long-form quality or performance.
 
 ## Required release gates and blockers
 
 | Gate | Status | Required action |
 | --- | --- | --- |
 | Native MLX EN/PL compatibility | PASS | Short real samples and offline application flow recorded. |
-| Native Community-1 CPU, regular/exclusive turns | BLOCKED | User personally accepts its access conditions and provides an external read/download credential. Explicit download currently fails without authenticated access. |
+| Native Community-1 CPU, regular/exclusive turns | PASS | User-owned access resolved; pinned complete snapshot and real offline EN/PL/recurring-voice inference verified. |
 | Turbo versus large-v3 comparison | PENDING | Both snapshots passed short EN/PL compatibility; compare on identical representative conversation references before accepting a default. |
 | English WER <=15% | PENDING | Approved 5–10 minute two-speaker recording plus corrected text. |
 | Polish WER <=15% | PENDING | Approved 5–10 minute two-speaker recording plus corrected text. |
@@ -82,14 +83,14 @@ The remaining full offline gate must repeat startup, real ASR and Community-1, p
 | Mixed language / three speakers / music / overlap | PENDING | Approved challenge recordings and applicable references. Exact-zero silence finding/correction is recorded separately. |
 | 30 minute total RTF <=1.0 and no sustained memory pressure | PENDING | Representative 30 minute input, per-stage timing, peak memory and pressure observations. Short snippets cannot establish this target. |
 | Approximately 60 minute stability/recovery | PENDING | Approved long recording. Deterministic interruption/recovery already passes. |
-| Full cached network-disabled ASR+diarization | BLOCKED | Community-1 assets/access and real conversation input. |
-| Reproducible clean full model setup | PARTIAL | Dependencies install cleanly from lock; gated setup and complete transitive-assets validation await user access. |
+| Full cached network-disabled ASR+diarization | PASS | Complete actual EN/PL browser workflow with cached models, OS network denial and empty HF_HOME. |
+| Reproducible clean full model setup | PASS | Clean locked full dependencies; independently repeated pinned speaker download yields identical complete SHA-256 manifest; full doctor ready. Runtime transitive assets verified by empty-HF-home offline inference. Initial account acceptance remains user-owned. |
 
 No failed or pending gate is labelled passed. Private recordings, corrected references, detailed outputs, tokens, database files and weights stay outside Git. No gated conditions were accepted for the user.
 
 ## Ticket disposition
 
-LS-002, LS-003, LS-004, LS-005, LS-007, LS-008, LS-009, LS-010 have implementation and acceptance evidence. LS-001 and LS-006 remain incomplete pending real diarization/offline evidence; LS-011 remains incomplete pending full cached-model setup/run; LS-012 remains incomplete pending the release gates above. GitHub checkboxes and local Completion records track exact criterion-level evidence. Historical planning-status fields remain publication snapshots.
+LS-002, LS-003, LS-004, LS-005, LS-007, LS-008, LS-009, LS-010 have implementation and acceptance evidence. LS-001, LS-006 and LS-011 are also complete with native full offline, recurring-voice, actual diarization-cancellation and clean-setup evidence. LS-012 remains incomplete pending the representative quality/performance/stability gates above. GitHub checkboxes and local Completion records track exact criterion-level evidence. Historical planning-status fields remain publication snapshots.
 
 ## Constructed language-switch challenge
 
@@ -103,4 +104,4 @@ The final actual Polish browser repeat additionally verified per-recording model
 
 A follow-up audit verified that the constructed mixed input's normalized PCM is byte-identical to the concatenation of the separately normalized PL and EN samples: 193,920 and 168,960 frames respectively, 362,880 total at 16 kHz. PCM payload SHA-256: `aa28d02322e0a69987bb23d5b860dfbf98e9cee1854946f11a42dceca1444c8f`. Both portions retain the same RMS/peak values as their single-language inputs. The observed English omission is therefore not caused by dropped or altered audio during fixture construction.
 
-The installed mlx-whisper 0.4.3 decoder explicitly rejects non-null `beam_size` with `NotImplementedError`; beam search is not an available alternative in this adapter. No decoding settings or acceptance thresholds were changed. The application had no active or stored jobs at this audit; Community-1 readiness remained false and no external Hugging Face credential was available. Representative conversation/reference prerequisites remain unresolved.
+The installed mlx-whisper 0.4.3 decoder explicitly rejects non-null `beam_size` with `NotImplementedError`; beam search is not an available alternative in this adapter. No decoding settings or acceptance thresholds were changed. The application had no active or stored jobs at this audit; Community-1 readiness was false and no external Hugging Face credential was available at that earlier audit. The user has since resolved access; actual complete offline inference is now verified above. Representative conversation/reference prerequisites remain unresolved.

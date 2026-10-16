@@ -6,19 +6,19 @@ A local web application for transcribing imported English and Polish audio/video
 
 ## One-time setup
 
-Requirements: native arm64 macOS, Python 3.11, `uv`, Node.js/npm, FFmpeg and FFprobe, and enough storage for models and recordings (allow approximately 15 GB for setup). Install native prerequisites through your preferred package manager.
+Requirements: native arm64 macOS, Python 3.11, `uv`, Node.js 22.12 or newer with npm, FFmpeg and FFprobe, and enough storage for models and recordings (allow approximately 15 GB for setup). Install native prerequisites through your preferred package manager.
 
 ```sh
 make setup
 make build
 make models PROFILE=fast
 # Personally accept the Community-1 access conditions on Hugging Face first.
-# Set HF_TOKEN in your shell or use the external Hugging Face credential store.
+.venv/bin/hf auth login --no-add-to-git-credential
 make models PROFILE=diarization
 make doctor
 ```
 
-Review the [Community-1 conditions](https://huggingface.co/pyannote/speaker-diarization-community-1) yourself. LocalScribe never accepts them for you. You can authenticate the external local store with `.venv/bin/hf auth login --no-add-to-git-credential` in your terminal. Download tokens belong only in your shell/credential store, never the UI, Git, or issue comments. Do not include a token in a command argument. Unset `HF_TOKEN` after setup. Downloads happen only through `make models`; startup never downloads weights.
+Review the [Community-1 conditions](https://huggingface.co/pyannote/speaker-diarization-community-1) yourself. LocalScribe never accepts them for you. The installed Hugging Face CLI supports browser/device login: run `.venv/bin/hf auth login --no-add-to-git-credential` in your terminal, choose browser login if prompted, and personally authorize it in your browser. This stores the credential outside the repository; you do not need to create a manual access token. An existing narrowly scoped download token in an external credential store or `HF_TOKEN` remains an alternative. Credentials never belong in the LocalScribe UI, Git, issue comments, or command arguments. If you used `HF_TOKEN`, unset it after setup. Downloads happen only through `make models`; startup never downloads weights. See the [complete setup and offline verification guide](docs/setup.md).
 
 `model-lock.json` records exact model revisions. Local manifests record SHA-256 hashes for each asset. The Fast profile is provisional pending reference measurements; the Quality profile requires an explicit compatibility spike before it is enabled; representative quality remains unverified for both profiles. See [model spike](docs/research/model-spike.md).
 
