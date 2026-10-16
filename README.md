@@ -2,7 +2,7 @@
 
 A local web application for transcribing imported English and Polish audio/video files on Apple Silicon. Transcription uses MLX Whisper; speaker diarization uses Community-1 on the CPU. Inference runs sequentially. Recordings and results remain on your Mac.
 
-**Release status:** implementation in progress; quality, speaker accuracy, offline end-to-end inference, and sustained performance gates remain pending. See [progress](docs/implementation-progress.md) and [release evidence](docs/validation/mvp-release.md). Deterministic fixtures establish software behavior, not model accuracy.
+**Release status:** the complete functional application and real cached offline ASR plus diarization are verified. Representative quality, speaker accuracy and sustained performance gates remain pending. See [progress](docs/implementation-progress.md) and [release evidence](docs/validation/mvp-release.md). Deterministic fixtures establish software behavior, not model accuracy.
 
 ## One-time setup
 
