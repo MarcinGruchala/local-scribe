@@ -28,7 +28,7 @@ The inspected host reports Apple M5 Pro, 68,719,476,736 bytes (64 GiB) RAM, nati
 | FR-12: complete explicit deletion | PASS | Confirm dismiss/accept, active rejection, retry/delete race, partial-failure recovery, originals retained until deletion, shared assets preserved. Real ASR browser flow deletes owned job data. |
 | FR-13: full cached offline inference | PASS | Actual EN and PL ASR plus CPU Community-1 browser workflows succeed under OS external-network denial and empty HF_HOME. Real labels/turns, playback, saved name/text edits, all exports and deletion pass with no observed external browser requests. [Browser evidence](browser-smoke.md), [model evidence](diarization.md). |
 
-Fast verification: `.venv/bin/python -m pytest -q` and `.venv/bin/ruff check backend tests scripts`; frontend: `make build`. The latest full suite passed 136 tests with no skips, including immutable model-reference checks; the final command result is recorded in implementation progress. Model tests remain explicit; fast checks require no weights, credentials, or network. See [lifecycle evidence](lifecycle.md) and [browser evidence](browser-smoke.md).
+Fast verification: `.venv/bin/python -m pytest -q` and `.venv/bin/ruff check backend tests scripts`; frontend: `make build`. The latest full suite passed 167 tests with no skips, including immutable model-reference checks; the final command result is recorded in implementation progress. Model tests remain explicit; fast checks require no weights, credentials, or network. See [lifecycle evidence](lifecycle.md) and [browser evidence](browser-smoke.md).
 
 ## Actual ASR measurements
 
@@ -77,12 +77,12 @@ Full real browser runs now pass nine checks each for EN and PL, with no mocks: d
 | Native MLX EN/PL compatibility | PASS | Short real samples and offline application flow recorded. |
 | Native Community-1 CPU, regular/exclusive turns | PASS | User-owned access resolved; pinned complete snapshot and real offline EN/PL/recurring-voice inference verified. |
 | Turbo versus large-v3 comparison | PENDING | Both snapshots passed short EN/PL compatibility; compare on identical representative conversation references before accepting a default. |
-| English WER <=15% | PENDING | Approved 5–10 minute two-speaker recording plus corrected text. |
-| Polish WER <=15% | PENDING | Approved 5–10 minute two-speaker recording plus corrected text. |
-| Speaker-attributed speech >=90% | PENDING | Actual model plus hand-labelled turns; permutation-invariant mapping, ±250 ms collar, overlap excluded/reported separately. |
+| English WER <=15% | PENDING | Prepared 300.89 s natural two-speaker SBC005 candidate; two source uncertain-hearing spans need audit. Both profile runs pending. |
+| Polish WER <=15% | FAIL on predeclared natural sample | Human-corrected SpokesBiz 582.59 s: Fast 410/1929 = 21.2545%; Quality 390/1929 = 20.2177%. Neither profile passes; investigate justified alternatives without changing the threshold. |
+| Speaker-attributed speech >=90% | PENDING | Actual model works; public reference times are automatically aligned or intonation units. Independently audited speech boundaries/labels remain required. |
 | Mixed language / three speakers / music / overlap | PENDING | Approved challenge recordings and applicable references. Exact-zero silence finding/correction is recorded separately. |
 | 30 minute total RTF <=1.0 and no sustained memory pressure | PENDING | Representative 30 minute input, per-stage timing, peak memory and pressure observations. Short snippets cannot establish this target. |
-| Approximately 60 minute stability/recovery | PENDING | Approved long recording. Deterministic interruption/recovery already passes. |
+| Approximately 60 minute stability/recovery | PASS, provisional Fast stability | Actual approved private 3762.517 s normalized recording completes offline in 1732.320 s wrapper wall, RTF 0.4604, peak RSS 4598317056 bytes; 866/866 pressure samples normal. Final release-profile selection and separate deterministic recovery evidence remain explicit. |
 | Full cached network-disabled ASR+diarization | PASS | Complete actual EN/PL browser workflow with cached models, OS network denial and empty HF_HOME. |
 | Reproducible clean full model setup | PASS | Clean locked full dependencies; independently repeated pinned speaker download yields identical complete SHA-256 manifest; full doctor ready. Runtime transitive assets verified by empty-HF-home offline inference. Initial account acceptance remains user-owned. |
 
@@ -105,3 +105,22 @@ The final actual Polish browser repeat additionally verified per-recording model
 A follow-up audit verified that the constructed mixed input's normalized PCM is byte-identical to the concatenation of the separately normalized PL and EN samples: 193,920 and 168,960 frames respectively, 362,880 total at 16 kHz. PCM payload SHA-256: `aa28d02322e0a69987bb23d5b860dfbf98e9cee1854946f11a42dceca1444c8f`. Both portions retain the same RMS/peak values as their single-language inputs. The observed English omission is therefore not caused by dropped or altered audio during fixture construction.
 
 The installed mlx-whisper 0.4.3 decoder explicitly rejects non-null `beam_size` with `NotImplementedError`; beam search is not an available alternative in this adapter. No decoding settings or acceptance thresholds were changed. The application had no active or stored jobs at this audit; Community-1 readiness was false and no external Hugging Face credential was available at that earlier audit. The user has since resolved access; actual complete offline inference is now verified above. Representative conversation/reference prerequisites remain unresolved.
+
+## Natural Polish comparison and long-recording checkpoint
+
+The user requested a pause before shutting down the Mac. All model processes finished; both application launchers are stopped cleanly. Detailed private/public artifacts were preserved outside Git in `~/Library/Application Support/LocalScribe/validation/2026-10-16/` rather than relying on temporary files surviving restart.
+
+A user-approved private stereo AAC recording normalized to 3762.5173125 seconds completed the full Fast/Auto plus CPU Community-1 pipeline under OS external-network denial and empty HF home. ASR took 74.215 s, diarization 1647.990 s, spike total 1731.359 s, observed child wall 1732.304 s and wrapper wall 1732.320 s. Peak process RSS was 4598317056 bytes. All 866 pressure samples were normal (1), zero unknown/unavailable, maximum sample gap 2.010 s; no sampled warning/critical interval occurred. Brief spikes between polls cannot be excluded. This passes the approximately 60-minute execution/memory-stability case for the provisional Fast profile, not reference accuracy or final model acceptance.
+
+The output detected English and contained 724 display segments, five anonymous speaker IDs, 9160 words, 633 regular and 592 exclusive turns. An `alignment_fallback` warning remains visible; 12 segments have unknown attribution and 58 are marked overlapping. These are model observations, not independently verified speaker or text correctness. Validated private TXT/SRT/VTT/JSON exports were saved; independent subtitle parsers accepted all 724 cues including timestamps beyond one hour. The original remains untouched. No private filename, path, fingerprint or transcript text is published here.
+
+Before model predictions, the Polish reference window was fixed to 0–582.59 s of the permitted natural SpokesBiz conversation. Human-corrected source text has 1929 tokens under the fixed scorer (the corpus's own count is 1933). Both profiles used identical forced-Polish ASR-only options and the same audio/reference. Diarization was intentionally disabled for this text comparison; these timings are not full-pipeline performance.
+
+| Profile | Substitutions | Deletions | Insertions | WER | ASR / total spike | Peak RSS |
+| --- | --- | --- | --- | --- | --- | --- |
+| Fast | 143 | 255 | 12 | 410/1929 = 21.2545% | 16.543 / 18.207 s | 2201632768 bytes |
+| Quality | 146 | 224 | 20 | 390/1929 = 20.2177% | 56.427 / 59.137 s | 3824828416 bytes |
+
+**Neither profile passes the 15% target on this predeclared natural sample.** The earlier tiny FLEURS scores do not override this failure. The source was not reclassified or the threshold changed after observing results. Quality's short run also observed nine system-pressure warning samples, a 17.370 s sampled interval; this cannot be attributed exclusively to the model and is not a passed no-pressure gate. Fast's text run had all 11 pressure samples normal. Both returned the documented alignment fallback.
+
+Next after the user's explicit resume: investigate deletion/substitution causes and evaluate the accepted first fallback, whisper.cpp/Metal, before any engine/scope decision; complete English comparison, representative 30-minute performance with the selected profile and remaining challenge/manual reference gates. No release profile is accepted while these failures remain unresolved. See [reference provenance and preparation](../research/reference-corpora.md). Goal remains incomplete and paused at the user's request.
