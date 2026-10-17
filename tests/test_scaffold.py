@@ -109,5 +109,17 @@ def test_missing_frontend_is_actionable(settings):
 def test_private_roots_cannot_enter_checkout(monkeypatch):
     repository = Path(__file__).resolve().parents[1]
     monkeypatch.setenv("LOCALSCRIBE_DATA_ROOT", str(repository / "private-recordings"))
-    with pytest.raises(ValueError, match="outside the repository"):
+    with pytest.raises(ValueError, match="ignored output/"):
+        Settings.from_env()
+
+
+def test_default_store_is_ignored_project_output_and_models_remain_external(monkeypatch):
+    repository = Path(__file__).resolve().parents[1]
+    monkeypatch.delenv("LOCALSCRIBE_DATA_ROOT", raising=False)
+    monkeypatch.delenv("LOCALSCRIBE_MODEL_ROOT", raising=False)
+    assert Settings.from_env().data_root == repository / "output"
+    monkeypatch.setenv("LOCALSCRIBE_DATA_ROOT", str(repository / "output" / "custom"))
+    assert Settings.from_env().data_root == repository / "output" / "custom"
+    monkeypatch.setenv("LOCALSCRIBE_MODEL_ROOT", str(repository / "output" / "models"))
+    with pytest.raises(ValueError, match="Model directories must be outside"):
         Settings.from_env()

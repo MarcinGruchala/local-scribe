@@ -30,11 +30,13 @@ make start
 
 One launcher owns the store, starts one supervised worker, serves the built frontend on `http://127.0.0.1:8765`, and opens your browser. Stop it with Ctrl-C. If the default port is occupied, start with `LOCALSCRIBE_PORT=8768 make start` (or another free port). A second launcher cannot own the same store. `make dev` starts without opening a browser. Configuration:
 
-- `LOCALSCRIBE_DATA_ROOT`: default `~/Library/Application Support/LocalScribe/`.
+- `LOCALSCRIBE_DATA_ROOT`: default `output/` in this project (ignored by Git).
 - `LOCALSCRIBE_MODEL_ROOT`: default `~/Library/Caches/LocalScribe/models/`.
 - `LOCALSCRIBE_PORT`: default `8765`; binding remains loopback-only.
 
-Keep custom data/model roots outside the checkout. Back up the entire data directory while the app is stopped if you want to retain recordings and edits. Shared model assets are stored separately; job deletion never deletes them. Upgrades preserve the SQLite store; do not remove it to upgrade.
+Open History to revisit saved transcripts. Each completed recording automatically has `transcript.txt`, `transcript.srt`, `transcript.vtt` and `transcript.json` under `output/jobs/<job-id>/`; saved text and speaker-name edits update these copies. The UI shows a copyable folder path and reports copy failures separately from saved edits. Retry file generation or restart to repair missing/modified copies. Edit through LocalScribe: manually changed export copies are regenerated from the saved transcript.
+
+`output/` contains private media, the database and exports; never force-add it to Git. Custom data roots can use ignored `output/` or a directory outside the checkout; model roots must stay outside the checkout. Back up the entire data directory while the app is stopped. On first default startup, an existing previous default store in `~/Library/Application Support/LocalScribe/` is copied into `output/` if no destination database exists. Stop the old instance first. The old store is retained as a backup, including its media; deletion in the new store does not delete that backup. Validation artifacts remain in their previous directory. Shared model assets survive job deletion. Upgrades preserve the SQLite store; do not remove it to upgrade.
 
 ## Use and recovery
 

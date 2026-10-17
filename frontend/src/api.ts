@@ -1,9 +1,15 @@
 export type Warning = { code: string; message: string };
 export type Options = { language: 'auto' | 'en' | 'pl'; profile: 'fast' | 'quality'; diarization: boolean; speakerCount: number | null };
+export type LocalFiles = {
+  directory: string; status: 'ready' | 'pending' | 'missing' | 'error'; files: string[];
+  revision: number | null; savedRevision: number | null; attempt: number | null;
+  message: string | null; error: { code: string; message: string } | null;
+};
 export type Job = {
   id: string; name: string; status: string; options: Options; warnings: Warning[];
   error: { code: string; message: string } | null; attempt: number;
   createdAt: string | number; startedAt?: string | number | null; elapsedSeconds?: number; duration?: number;
+  localFiles?: LocalFiles;
 };
 export type Segment = { id: string; start: number; end: number; speakerId: string | null; text: string; editedText: string | null; overlap: boolean };
 export type Speaker = { id: string; displayName: string };
@@ -13,7 +19,7 @@ export type Health = {
   status: string; ready: boolean;
   dependencies: Record<string, boolean>;
   models: { fast?: ModelReadiness; quality?: ModelReadiness; diarization?: ModelReadiness; message?: string };
-  storage?: { availableBytes: number }; activeJob?: string | null;
+  storage?: { availableBytes: number; dataRoot?: string }; activeJob?: string | null;
   worker?: { running: boolean; message: string | null } | null;
 };
 
@@ -81,6 +87,7 @@ export const api = {
   transcript: (id: string) => request<Transcript>(`${idPath(id)}/transcript`),
   import: upload,
   action: (id: string, action: 'cancel' | 'retry') => request<Job>(`${idPath(id)}/${action}`, { method: 'POST' }),
+  syncLocalFiles: (id: string) => request<Job>(`${idPath(id)}/local-files`, { method: 'POST' }),
   save: (id: string, revision: number, texts: Record<string, string | null>, names: Record<string, string>) => request<Transcript>(`${idPath(id)}/transcript`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, texts, names }) }),
   delete: (id: string) => request<void>(idPath(id), { method: 'DELETE' }),
   media: (id: string) => `${idPath(id)}/media`,

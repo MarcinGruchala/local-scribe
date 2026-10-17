@@ -20,8 +20,8 @@ class Settings:
         model_root: Path | None = None,
         port: int | None = None,
     ) -> "Settings":
-        default_root = Path.home() / "Library" / "Application Support" / "LocalScribe"
         repository = Path(__file__).resolve().parents[3]
+        default_root = repository / "output"
         settings = cls(
             data_root=Path(data_root or os.environ.get("LOCALSCRIBE_DATA_ROOT", default_root))
             .expanduser()
@@ -44,8 +44,10 @@ class Settings:
         )
         if not 1 <= settings.port <= 65535:
             raise ValueError("Port must be between 1 and 65535.")
-        if any(
-            path.is_relative_to(repository) for path in (settings.data_root, settings.model_root)
+        if settings.model_root.is_relative_to(repository):
+            raise ValueError("Model directories must be outside the repository.")
+        if settings.data_root.is_relative_to(repository) and not settings.data_root.is_relative_to(
+            repository / "output"
         ):
-            raise ValueError("Private data and model directories must be outside the repository.")
+            raise ValueError("Private data must use ignored output/ or stay outside the repository.")
         return settings

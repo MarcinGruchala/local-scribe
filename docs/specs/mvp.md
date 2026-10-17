@@ -205,7 +205,7 @@ The full JSON also stores words, regular/exclusive speaker turns, duration, requ
 
 ## 8. Storage, privacy, and setup
 
-Default data root: `~/Library/Application Support/LocalScribe/`. Allow an explicit override. Store the database, media, and attempt files there. Keep models in a separate configurable cache with a revision manifest. Private recordings, caches, database files, tokens, and generated transcripts must never enter Git. A future implementation must extend `.gitignore` accordingly.
+Default data root: the project’s Git-ignored `output/` directory (user decision on 2026-10-17, superseding the original home-directory default). Allow an explicit override. Store the database, media, and attempt files there. History must reopen saved transcripts. Automatically maintain TXT/SRT/VTT/JSON files for the latest saved revision in `output/jobs/<job-id>/`, show the local folder path, and report/retry copy failures without losing canonical edits. Preserve the previous default store as a backup during first-launch migration. Keep models in a separate configurable cache with a revision manifest. Private recordings, caches, database files, tokens, and generated transcripts must never enter Git. A future implementation must extend `.gitignore` accordingly.
 
 Bind the server to `127.0.0.1` by default. Validate Host and Origin, disable broad CORS, and use a per-session local request token for mutations to prevent other websites from issuing local actions. The launcher supplies the token to its own frontend; it is separate from the Hugging Face token. Avoid filename-derived filesystem paths. Display names can retain the original filename, but storage paths use generated IDs. Serve only media owned by a known job.
 

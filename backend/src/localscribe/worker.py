@@ -100,7 +100,7 @@ class Worker:
             raise RuntimeError("Another worker owns this local data store.") from None
         self._lock_handle = handle
         try:
-            self._recover_children()
+            self.recover_children()
             self.jobs.recover()
             self._stop.clear()
             self._thread = threading.Thread(
@@ -125,7 +125,8 @@ class Worker:
                 raise RuntimeError("The worker has not stopped; its ownership lock is retained.")
         self._release_lock()
 
-    def _recover_children(self):
+    def recover_children(self):
+        """Stop identity-verified children before recovering or migrating a store."""
         for attempt in self.jobs.active_processes():
             if (
                 attempt["pid"] is None

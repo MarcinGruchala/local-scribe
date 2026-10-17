@@ -93,7 +93,7 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
             "dependencies": {"ffmpeg": bool(ffmpeg), "ffprobe": bool(ffprobe)},
             "models": models,
             "runtime": {"python": platform.python_version(), "architecture": platform.machine()},
-            "storage": {"availableBytes": disk.free},
+            "storage": {"availableBytes": disk.free, "dataRoot": str(settings.data_root)},
             "activeJob": active,
             "worker": None
             if worker is None
@@ -183,6 +183,10 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
     @app.patch("/api/jobs/{job_id}/transcript")
     def edit_transcript(job_id: str, edit: TranscriptEdit):
         return jobs.patch(job_id, edit.revision, edit.texts, edit.names)
+
+    @app.post("/api/jobs/{job_id}/local-files")
+    def sync_local_files(job_id: str):
+        return jobs.sync_local_files(job_id)
 
     @app.get("/api/jobs/{job_id}/export")
     def export(job_id: str, format: str = Query(...)):

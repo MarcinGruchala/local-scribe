@@ -52,6 +52,11 @@ def main() -> None:
 
     try:
         with instance_lock(settings.data_root):
+            repository = Path(__file__).resolve().parents[3]
+            if settings.data_root == repository / "output":
+                from .migration import migrate_legacy_store
+
+                migrate_legacy_store(settings.data_root, settings.model_root)
             app = create_app(settings)
             from .worker import Worker
 
@@ -71,7 +76,7 @@ def main() -> None:
                 if browser_timer:
                     browser_timer.cancel()
                 worker.stop()
-    except AlreadyRunningError as exc:
+    except (AlreadyRunningError, RuntimeError) as exc:
         parser.exit(1, f"{exc}\n")
 
 

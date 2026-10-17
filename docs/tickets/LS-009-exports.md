@@ -32,3 +32,5 @@ Test timestamp rounding, Unicode/Polish diacritics, multiline text, null speaker
 ## Completion record
 
 2026-10-16: Completed. TXT/SRT/VTT/JSON use one saved revision including intentional empty edits, Unicode and names. Independent subtitle parsers validate cues; JSON retains raw/edit/provenance/turn data. Empty/degraded cases pass tests; all four real browser downloads pass. See tests/test_exports.py and browser evidence.
+
+2026-10-17 follow-up: User requested project-local history/files. Saved transcripts now automatically maintain four readable formats under ignored `output/jobs/<job-id>/`, with copyable paths, repair feedback and source-preserving legacy-store migration. Canonical edits remain successful if optional file copies fail. 208 fast tests and nine actual Chromium checks pass; see docs/validation/local-history.md. Historical planning status is preserved.

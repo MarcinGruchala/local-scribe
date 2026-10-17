@@ -144,15 +144,15 @@ def test_recovery_checks_pid_create_time_and_exact_command(jobs, tmp_path):
     try:
         identity = psutil.Process(process.pid)
         jobs.record_process(job["id"], 1, process.pid, identity.create_time() - 100, command)
-        worker._recover_children()
+        worker.recover_children()
         assert process.poll() is None  # A reused PID cannot be killed.
         jobs.record_process(
             job["id"], 1, process.pid, identity.create_time(), command[:-1] + ["different-request"]
         )
-        worker._recover_children()
+        worker.recover_children()
         assert process.poll() is None
         jobs.record_process(job["id"], 1, process.pid, identity.create_time(), command)
-        worker._recover_children()
+        worker.recover_children()
         process.wait(timeout=3)
         jobs.recover()
         assert jobs.get(job["id"])["failure"]["code"] == "interrupted"

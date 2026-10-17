@@ -7,6 +7,16 @@ const messageOf = (error: unknown) => error instanceof Error ? error.message : '
 const selectedHash = () => new URLSearchParams(window.location.hash.slice(1)).get('job');
 const sizeLabel = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
+function LocalPath({ label, path }: { label: string; path: string }) {
+  const input = useRef<HTMLInputElement>(null); const [feedback, setFeedback] = useState('');
+  useEffect(() => { setFeedback(''); }, [path]);
+  async function copy() {
+    try { await navigator.clipboard.writeText(path); setFeedback('Path copied.'); }
+    catch { input.current?.focus(); input.current?.select(); setFeedback('Select and copy this path.'); }
+  }
+  return <div className="local-path"><label>{label}<input ref={input} value={path} title={path} readOnly onFocus={event => event.currentTarget.select()} /></label><button className="button secondary" type="button" onClick={copy} aria-label={`Copy ${label.toLowerCase()}`}>Copy path</button>{feedback && <span role="status">{feedback}</span>}</div>;
+}
+
 function ImportForm({ health, onImported }: { health: Health | null; onImported: (job: Job) => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [options, setOptions] = useState<Options>({ language: 'auto', profile: 'fast', diarization: true, speakerCount: null });
@@ -71,8 +81,29 @@ function Readiness({ health, error, onRefresh }: { health: Health | null; error:
   return <section className="readiness" aria-label="Local readiness">
     <div><strong><span className={`status-dot ${health?.ready ? 'ready' : ''}`} />{health ? health.ready ? 'Local engine ready' : 'Setup needed' : 'Checking local engine…'}</strong><span className="muted">{health?.storage ? `${(health.storage.availableBytes / 1024 ** 3).toFixed(1)} GB available` : 'Everything runs on this Mac'}</span></div>
     <div className="readiness-items">{items.map(([label, ready]) => <span key={label} className={ready ? 'check-good' : 'check-missing'}>{ready ? '✓' : '○'} {label}</span>)}<button type="button" className="text-button" onClick={onRefresh}>Refresh</button></div>
+    {health?.storage?.dataRoot && <LocalPath label="Recordings and transcripts folder" path={health.storage.dataRoot} />}
     {error && <p role="alert" className="notice error">{error}</p>}
     {health && !health.ready && <p className="readiness-help">{health.worker?.running === false ? health.worker.message || 'Local worker stopped. Restart the application to recover interrupted work.' : <>Run the explicit model setup and <code>make doctor</code> from the repository. Runtime never downloads models.</>}</p>}
+  </section>;
+}
+
+function LocalTranscriptFiles({ job, onUpdated }: { job: Job; onUpdated: (job: Job) => void }) {
+  const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const files = job.localFiles;
+  if (!files || !completedStatuses.has(job.status)) return null;
+  async function retry() {
+    setBusy(true); setError('');
+    try {
+      const value = await api.syncLocalFiles(job.id); onUpdated(value);
+      if (value.localFiles?.status !== 'ready') setError(value.localFiles?.message || 'Local transcript files could not be updated. Try again or use the export buttons.');
+    } catch (error) { setError(messageOf(error)); } finally { setBusy(false); }
+  }
+  return <section className="local-files" aria-label="Local transcript files"><h3>Local transcript files</h3>
+    {files.status === 'ready' ? <p>TXT, SRT, VTT and JSON are saved here automatically. Saving edits updates these files.</p> : <p className="notice warning" role="status">{files.message || (files.status === 'pending' ? 'Updating the local transcript files…' : 'Local transcript files are unavailable. You can still use the export buttons below.')}</p>}
+    <LocalPath label="Transcript folder" path={files.directory} />
+    {files.status === 'ready' && <div className="local-file-names">{files.files.map(file => <span key={file}>{file.split(/[\\/]/).pop()}</span>)}</div>}
+    {files.status !== 'ready' && <><p className="local-files-fallback">Your saved transcript remains available through the export buttons below.</p><button className="button secondary" disabled={busy} onClick={retry}>{busy ? 'Updating local files…' : 'Retry local files'}</button></>}
+    {error && <p role="alert" className="notice error">{error}</p>}
   </section>;
 }
 
@@ -121,7 +152,7 @@ function JobDetail({ id, onChange, onDeleted, onDirtyChange }: { id: string; onC
         if (completedStatuses.has(value.status) && !terminalLoaded.current) {
           const result = await api.transcript(id); if (disposed) return; setTranscript(result); terminalLoaded.current = true; onChange();
         }
-        if (activeStatuses.has(value.status)) timer = setTimeout(load, 1000); else onChange();
+        if (activeStatuses.has(value.status) || (completedStatuses.has(value.status) && value.localFiles?.status === 'pending')) timer = setTimeout(load, 1000); else onChange();
       } catch (error) { if (!disposed) setError(messageOf(error)); }
     }
     void load(); return () => { disposed = true; if (timer) clearTimeout(timer); };
@@ -137,6 +168,10 @@ function JobDetail({ id, onChange, onDeleted, onDirtyChange }: { id: string; onC
     setBusy(true); setError('');
     try { await api.delete(id); onDirtyChange(false); onDeleted(); } catch (error) { setError(messageOf(error)); setBusy(false); setDeleting(false); setTranscript(null); api.job(id).then(setJob).catch(() => { /* Keep the deletion failure visible if status cannot be refreshed. */ }); }
   }
+  function saved(value: Transcript) {
+    setTranscript(value); onChange();
+    api.job(id).then(setJob).catch(error => setError(messageOf(error)));
+  }
   return <section className="panel detail-panel" aria-labelledby="detail-title">
     {!job ? <><h2 id="detail-title">Recording</h2><p>{error || 'Loading recording…'}</p>{error && <button className="button secondary" onClick={() => setReload(current => current + 1)}>Try again</button>}</> : <>
       <div className="section-heading"><div><span className="eyebrow">RECORDING</span><h2 id="detail-title">{job.name}</h2></div><span className={`status-badge ${job.status}`}>{job.status === 'completed' && job.warnings?.length ? 'Completed with warnings' : readableStatus(job.status)}</span></div>
@@ -145,10 +180,11 @@ function JobDetail({ id, onChange, onDeleted, onDirtyChange }: { id: string; onC
       {job.error && <p role="alert" className="notice error"><strong>{job.error.code === 'interrupted' ? 'Processing was interrupted. ' : ''}</strong>{job.error.message}</p>}
       {[...(job.warnings || []), ...(transcript?.warnings || [])].filter((warning, index, warnings) => warnings.findIndex(other => other.code === warning.code && other.message === warning.message) === index).map(warning => <p key={warning.code} className="notice warning">{warning.message}</p>)}
       {error && <p role="alert" className="notice error">{error}</p>}
-      {transcript && <TranscriptEditor key={id} job={job} transcript={transcript} onSaved={setTranscript} onDirtyChange={onDirtyChange} />}
+      <LocalTranscriptFiles job={job} onUpdated={value => { setJob(value); onChange(); }} />
+      {transcript && <TranscriptEditor key={id} job={job} transcript={transcript} onSaved={saved} onDirtyChange={onDirtyChange} />}
       {!activeStatuses.has(job.status) && <div className="job-actions">{['failed', 'cancelled'].includes(job.status) && <button className="button secondary" disabled={busy} onClick={() => setConfirmRetry(true)}>Retry job</button>}<button className="text-button danger" disabled={busy} onClick={() => setDeleting(true)}>{['deleting', 'deletion_failed'].includes(job.status) ? 'Retry deletion' : 'Delete recording'}</button></div>}
       {confirmRetry && <div className="confirmation" role="alertdialog" aria-labelledby="retry-title"><h3 id="retry-title">Retry this recording?</h3><p>A new attempt uses the same model settings. A successful replacement discards any previous text and speaker-name edits.</p><button className="button secondary" onClick={() => setConfirmRetry(false)}>Keep current result</button><button className="button primary" disabled={busy} onClick={() => action('retry')}>Retry recording</button></div>}
-      {deleting && <div className="confirmation" role="alertdialog" aria-labelledby="delete-title"><h3 id="delete-title">Delete this recording permanently?</h3><p>This permanently deletes “<strong>{job.name}</strong>”, including its original media, playback audio, transcript, edits and all attempts from this Mac. Shared models remain available.</p><button className="button secondary" onClick={() => setDeleting(false)} disabled={busy}>Keep recording</button><button className="button destructive" onClick={remove} disabled={busy}>{busy ? 'Deleting…' : 'Delete permanently'}</button></div>}
+      {deleting && <div className="confirmation" role="alertdialog" aria-labelledby="delete-title"><h3 id="delete-title">Delete this recording permanently?</h3><p>This permanently deletes “<strong>{job.name}</strong>”, including its original media, playback audio, transcript, edits and all attempts from the active LocalScribe data folder. Shared models remain available.</p><button className="button secondary" onClick={() => setDeleting(false)} disabled={busy}>Keep recording</button><button className="button destructive" onClick={remove} disabled={busy}>{busy ? 'Deleting…' : 'Delete permanently'}</button></div>}
     </>}
   </section>;
 }

@@ -3,10 +3,12 @@
 import json
 import os
 import shutil
+import sqlite3
 import time
 import uuid
 from pathlib import Path
 
+from . import local_files
 from .contracts import Options, Transcript
 
 ACTIVE = {"preparing", "transcribing", "diarizing", "assembling", "cancelling"}
@@ -60,6 +62,9 @@ class Jobs:
                         "UPDATE jobs SET warnings=? WHERE id=?", (json.dumps(warnings), row["id"])
                     )
             db.execute("INSERT OR IGNORE INTO schema_migrations(version) VALUES (3)")
+            if "local_files" not in columns:
+                db.execute("ALTER TABLE jobs ADD COLUMN local_files TEXT NOT NULL DEFAULT '{}'")
+            db.execute("INSERT OR IGNORE INTO schema_migrations(version) VALUES (4)")
 
     def directory(self, job_id):
         if not isinstance(job_id, str) or len(job_id) != 32:
@@ -95,11 +100,72 @@ class Jobs:
             "revision": row["revision"],
             "warnings": json.loads(row["warnings"]),
             "error": json.loads(row["failure"]) if row["failure"] else None,
+            "localFiles": self._local_files_descriptor(row),
             "elapsedSeconds": max(0, (row["finished"] or time.time()) - row["started"])
             if row["started"]
             else 0,
         }
         return result
+
+    def _local_files_descriptor(self, row):
+        state = json.loads(row["local_files"])
+        available = row["result"] is not None and row["status"] not in {
+            "deleting",
+            "deletion_failed",
+        }
+        status = state.get("status", "missing") if available else "missing"
+        messages = {
+            "ready": "Local transcript files match the latest saved revision.",
+            "pending": "The transcript is saved. Local transcript files are awaiting an update.",
+            "missing": "Local transcript files are available after a transcript is completed.",
+            "error": "The transcript is saved, but local files could not be updated. Retry file generation or restart LocalScribe.",
+        }
+        message = messages[status]
+        return {
+            "directory": str(self.directory(row["id"])),
+            "status": status,
+            "files": [str(self.directory(row["id"]) / name) for name in local_files.FILENAMES],
+            "revision": state.get("revision"),
+            "savedRevision": row["revision"] if available else None,
+            "attempt": state.get("attempt"),
+            "message": message,
+            "error": {"code": "local_files_failed", "message": message}
+            if status == "error"
+            else None,
+        }
+
+    def sync_local_files(self, job_id, *, force=True):
+        """Copy the latest committed revision, serialized against saves and deletion."""
+        with self.storage.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._row(db, job_id)
+            if not row["result"] or row["status"] in {"deleting", "deletion_failed"}:
+                raise JobError(
+                    409,
+                    "transcript_unavailable",
+                    "No saved transcript is available for local files.",
+                )
+            previous = json.loads(row["local_files"])
+            try:
+                if force or not local_files.matches_saved_revision(
+                    self.directory(job_id), job_id, row["attempt"], row["revision"]
+                ):
+                    local_files.write_saved_revision(
+                        self.directory(job_id), self._transcript(row), row["attempt"]
+                    )
+                state = {"status": "ready", "revision": row["revision"], "attempt": row["attempt"]}
+            except Exception:  # noqa: BLE001 - Optional copies must never invalidate a committed transcript.
+                state = {**previous, "status": "error"}
+            db.execute("UPDATE jobs SET local_files=? WHERE id=?", (json.dumps(state), job_id))
+            return self._serialize(self._row(db, job_id))
+
+    def _sync_local_files_after_commit(self, job_id):
+        try:
+            self.sync_local_files(job_id)
+        except (JobError, sqlite3.Error, OSError):
+            # Deletion may win between commit and copying. A database failure leaves
+            # the already committed pending state for an explicit retry/startup repair.
+            pass
 
     def get(self, job_id):
         with self.storage.connect() as db:
@@ -302,6 +368,11 @@ class Jobs:
                 "UPDATE attempts SET status='completed',finished=? WHERE job_id=? AND number=?",
                 (now, job_id, attempt),
             )
+            db.execute(
+                "UPDATE jobs SET local_files=? WHERE id=?",
+                (json.dumps({"status": "pending"}), job_id),
+            )
+        self._sync_local_files_after_commit(job_id)
         return True
 
     def transcript(self, job_id):
@@ -360,11 +431,15 @@ class Jobs:
             edits = json.loads(row["edits"])
             edits["segments"].update(segment_texts)
             edits["speakers"].update(speaker_names)
+            files_state = json.loads(row["local_files"])
+            files_state["status"] = "pending"
             db.execute(
-                "UPDATE jobs SET edits=?,revision=revision+1 WHERE id=?",
-                (json.dumps(edits), job_id),
+                "UPDATE jobs SET edits=?,revision=revision+1,local_files=? WHERE id=?",
+                (json.dumps(edits), json.dumps(files_state), job_id),
             )
-            return self._transcript(self._row(db, job_id))
+            saved = self._transcript(self._row(db, job_id))
+        self._sync_local_files_after_commit(job_id)
+        return saved
 
     def media_path(self, job_id):
         self.get(job_id)
@@ -457,3 +532,9 @@ class Jobs:
                             job_id,
                         ),
                     )
+
+        for job_id in published:
+            try:
+                self.sync_local_files(job_id, force=False)
+            except (JobError, sqlite3.Error, OSError):
+                pass

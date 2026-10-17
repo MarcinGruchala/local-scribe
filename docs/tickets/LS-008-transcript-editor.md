@@ -33,3 +33,5 @@ Test edit revision conflicts, invalid segment/name updates, and media ranges at 
 ## Completion record
 
 2026-10-16: Completed. Range playback/seeking/current segment, null/overlap display, saved text/name persistence/restart, revision conflicts, invalid/write-failure safety and immutable model result are verified at API/store/browser boundaries. Actual EN/PL playback/edit/reload also passed. See tests/test_api.py, tests/test_jobs.py and browser evidence.
+
+2026-10-17 follow-up: User requested project-local history/files. Saved transcripts now automatically maintain four readable formats under ignored `output/jobs/<job-id>/`, with copyable paths, repair feedback and source-preserving legacy-store migration. Canonical edits remain successful if optional file copies fail. 208 fast tests and nine actual Chromium checks pass; see docs/validation/local-history.md. Historical planning status is preserved.

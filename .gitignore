@@ -24,3 +24,5 @@ frontend/dist/
 *.npz
 models/
 .local-data/
+# Private application history, media, and readable transcript exports.
+/output/

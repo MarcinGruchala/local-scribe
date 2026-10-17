@@ -68,6 +68,14 @@ assert.equal(path.resolve(ROOT) === checkout || path.resolve(ROOT).startsWith(ch
     const browserWallSeconds = (performance.now() - started) / 1000;
     const detail = `${BASE}/api/jobs/${jobId}`;
     const job = await (await page.request.get(detail)).json();
+    const localDirectory = job.localFiles.directory;
+    assert.equal(job.localFiles.status, 'ready');
+    for (const format of ['txt', 'srt', 'vtt', 'json']) {
+      const exported = await page.request.get(detail + '/export?format=' + format);
+      assert.equal(exported.status(), 200);
+      assert.equal(await fs.readFile(path.join(localDirectory, 'transcript.' + format), 'utf8'), await exported.text());
+    }
+    record('real inference automatically saves four local files matching the canonical exports');
     const transcript = await (await page.request.get(detail + '/transcript')).json();
     assert.equal(job.status, 'completed'); assert.equal(job.options.language, LANGUAGE); assert.equal(job.options.diarization, true); assert.equal(job.options.speakerCount, COUNT);
     assert.equal(transcript.requestedLanguage, LANGUAGE);
@@ -115,6 +123,7 @@ assert.equal(path.resolve(ROOT) === checkout || path.resolve(ROOT).startsWith(ch
     for (const format of ['TXT', 'SRT', 'VTT', 'JSON']) {
       const pending = page.waitForEvent('download'); await page.getByRole('link', { name: format, exact: true }).click();
       const download = await pending; const contents = await fs.readFile(await download.path(), 'utf8');
+      assert.equal(await fs.readFile(path.join(localDirectory, 'transcript.' + format.toLowerCase()), 'utf8'), contents);
       assert(contents.includes('Public-sample validation edit.')); assert(contents.includes('Validation speaker A'));
       if (format === 'SRT') assert(/\d{2}:\d{2}:\d{2},\d{3} -->/.test(contents));
       if (format === 'VTT') assert(contents.startsWith('WEBVTT'));
@@ -128,6 +137,7 @@ assert.equal(path.resolve(ROOT) === checkout || path.resolve(ROOT).startsWith(ch
     assert((await page.getByRole('alertdialog').innerText()).includes(job.name));
     await page.getByRole('button', { name: 'Delete permanently', exact: true }).click(); await page.locator('.drop-zone').waitFor();
     assert.equal((await page.request.get(detail)).status(), 404); jobId = null;
+    await assert.rejects(fs.stat(localDirectory), { code: 'ENOENT' });
     record('only the new validation recording is deleted through named confirmation');
     assert.deepEqual(external, []); assert.deepEqual(errors, []);
     const report = { browser: await browser.version(), checks, case: CASE, requestedLanguage: LANGUAGE, detectedLanguage: transcript.language,

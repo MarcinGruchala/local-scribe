@@ -1,6 +1,6 @@
 # LocalScribe MVP release evidence
 
-Date: 2026-10-16. **Release decision: NOT READY.** The application is runnable and its functional workflows are implemented. Real English and Polish ASR plus CPU Community-1 work offline, including playback, saved text/speaker edits, all exports and deletion. Representative conversation quality and sustained performance evidence remain missing. This report does not certify the complete MVP.
+Date: 2026-10-17. **Release decision: NOT READY.** The application is runnable and its functional workflows are implemented. Real English and Polish ASR plus CPU Community-1 work offline, including playback, saved text/speaker edits, all exports and deletion. Representative conversation quality and sustained performance evidence remain missing. This report does not certify the complete MVP.
 
 ## Environment and reproducibility
 
@@ -28,7 +28,7 @@ The inspected host reports Apple M5 Pro, 68,719,476,736 bytes (64 GiB) RAM, nati
 | FR-12: complete explicit deletion | PASS | Confirm dismiss/accept, active rejection, retry/delete race, partial-failure recovery, originals retained until deletion, shared assets preserved. Real ASR browser flow deletes owned job data. |
 | FR-13: full cached offline inference | PASS | Actual EN and PL ASR plus CPU Community-1 browser workflows succeed under OS external-network denial and empty HF_HOME. Real labels/turns, playback, saved name/text edits, all exports and deletion pass with no observed external browser requests. [Browser evidence](browser-smoke.md), [model evidence](diarization.md). |
 
-Fast verification: `.venv/bin/python -m pytest -q` and `.venv/bin/ruff check backend tests scripts`; frontend: `make build`. The latest full suite passed 167 tests with no skips, including immutable model-reference checks; the final command result is recorded in implementation progress. Model tests remain explicit; fast checks require no weights, credentials, or network. See [lifecycle evidence](lifecycle.md) and [browser evidence](browser-smoke.md).
+Fast verification: `.venv/bin/python -m pytest -q` and `.venv/bin/ruff check backend tests scripts`; frontend: `make build`. The latest full suite passed 208 tests with no skips, including immutable model-reference checks; the final command result is recorded in implementation progress. Model tests remain explicit; fast checks require no weights, credentials, or network. See [lifecycle evidence](lifecycle.md) and [browser evidence](browser-smoke.md).
 
 ## Actual ASR measurements
 
@@ -124,3 +124,9 @@ Before model predictions, the Polish reference window was fixed to 0–582.59 s 
 **Neither profile passes the 15% target on this predeclared natural sample.** The earlier tiny FLEURS scores do not override this failure. The source was not reclassified or the threshold changed after observing results. Quality's short run also observed nine system-pressure warning samples, a 17.370 s sampled interval; this cannot be attributed exclusively to the model and is not a passed no-pressure gate. Fast's text run had all 11 pressure samples normal. Both returned the documented alignment fallback.
 
 Next after the user's explicit resume: investigate deletion/substitution causes and evaluate the accepted first fallback, whisper.cpp/Metal, before any engine/scope decision; complete English comparison, representative 30-minute performance with the selected profile and remaining challenge/manual reference gates. No release profile is accepted while these failures remain unresolved. See [reference provenance and preparation](../research/reference-corpora.md). Goal remains incomplete and paused at the user's request.
+
+## Project-local history follow-up (2026-10-17)
+
+The user requested transcript history and discoverable disk files in ignored `output/`. Implemented the new default, resumable/source-preserving migration, four automatic saved-revision copies, copyable folder paths, separate optional-copy failures and regeneration/startup repair. 208 model-free tests, Ruff, TypeScript/build and nine actual Chromium checks pass. The actual previous empty default store migrated successfully; populated history/edit/media migration is tested deterministically. See [local history evidence](local-history.md). This functional extension does not change or pass the unresolved inference quality gates.
+
+The same history extension additionally passes 20 actual cached-model EN/PL browser checks under external-network denial and an empty HF home, including automatic copies after inference, saved edits matching disk exports and owned-folder deletion. Decoder diagnostics in [ASR diagnosis](asr-diagnosis.md) retain all five additional failures; no production profile changed. The user deferred independent manual speaker-boundary auditing to later practical checking on 2026-10-17. That metric remains unverified, and this report does not certify 90% attribution or full release readiness.

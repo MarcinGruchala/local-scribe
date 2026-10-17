@@ -73,3 +73,13 @@ footer { display: flex; justify-content: space-between; gap: 20px; padding: 30px
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 .upload-progress { margin: 12px 0 18px; }
 .upload-progress progress { width: 100%; height: 8px; accent-color: #255381; }
+.local-path { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0; }
+.local-path label { flex: 1; min-width: min(100%, 240px); }
+.local-path input { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.local-path > span { width: 100%; color: #506b84; font-size: 11px; }
+.local-files { padding: 18px; margin: 22px 0; background: #f5f8fc; border: 1px solid #dce5f0; border-radius: 9px; }
+.local-files h3 { font-size: 14px; }
+.local-files p { font-size: 11px; color: #667b94; }
+.local-files .local-path { margin-top: 12px; }
+.local-files .local-files-fallback { margin: 12px 0; }
+.local-file-names { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #526b87; font-size: 11px; overflow-wrap: anywhere; }
