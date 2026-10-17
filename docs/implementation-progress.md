@@ -1,55 +1,37 @@
 # Implementation progress
 
-Updated: 2026-10-17. Branch: `codex/mvp-implementation`. Goal is **not complete**.
+Updated: 2026-10-17. Branch: `codex/mvp-implementation`. **Goal is not complete.**
 
-## Delivered
+## Current checkpoint
 
-- Runnable source application: `make setup`, `make build`, explicit `make models`, `make doctor`, `make start`.
-- Loopback/security, streamed validated media import, persistent FIFO worker, cancellation/retry/recovery, timestamped ASR/speaker adapters, deterministic assignment, playback/editing, saved TXT/SRT/VTT/JSON, complete confirmed deletion.
-- Model repository/revisions pinned per recording and guarded across retry/publication; full runtime provenance in JSON. Private data now defaults to Git-ignored project `output/` by the user’s 2026-10-17 decision; models remain outside the checkout.
-- Focused commits preserve planning baseline and implementation increments. Historical planning-status fields remain unchanged; local Completion records updated.
+- The user resumed work and requested discoverable project-local history. Commit `39a7cc4` is pushed: ignored `output/` default, source-preserving/resumable legacy-store migration, automatic TXT/SRT/VTT/JSON after completion and saved edits, copyable folder paths, separate copy failures and repair. Decoder findings are documented in pushed `da6f1ef` and the latest validation update.
+- Normal app is running at `http://127.0.0.1:8768` under OS external-network denial with empty `HF_HOME`. Fixture server 8766 is stopped. All model diagnostics are finished; the heavy slot is free. Do not start competing inference if a user job is active/queued.
+- The user deferred independent manual speaker-boundary auditing to later practical checking. Do not pursue further gold-corpus acquisition or broad model/decoder searches. The 90% metric remains unverified; no threshold is silently weakened.
+- LS-001–LS-011 remain complete/closed, with English follow-up evidence posted to #8/#9. LS-012 remains open with current failures/deferrals documented. Historical ticket planning-status fields are preserved. Release decision remains **NOT READY**.
 
-## Verification
+## Verified
 
-- Pre-resume fast suite: 167 tests pass without weights/credentials; Ruff, TypeScript and production frontend build pass. A separate clean core-only environment also runs the suite; complete model dependencies install offline from the same cached lock.
-- Actual FFmpeg covers all seven supported formats, full decoded validation, duration/byte/storage failures, local-only formats/protocols and original-byte retention.
-- Actual Chromium fixture checks cover picker/drop, measured upload, refresh/stages, keyboard, playback, editing, all exports, save failures, cancellation/retry/deletion, degraded/overlap states, dirty navigation and paginated history. Reports: validation/browser-smoke.md and validation/lifecycle.md.
-- Actual native MLX Fast and Quality EN/PL inference succeeds under OS external-network denial. Polish diacritics and Auto detection verified. Real EN/PL ASR-only browser workflows plus actual cancellation/retry pass. Final PL browser repeat verifies model pinning/runtime provenance.
-- Public short FLEURS references: both profiles PL 0/20 errors, EN 2/19. These tiny diagnostics do not satisfy representative quality gates.
-- Constructed PL→EN challenge: both profiles omit EN, 19/39 deletions. Initial exact-zero silence hallucination documented; exact-zero guard now returns empty result without loading models. No thresholds changed or failures hidden.
-- All three pinned model snapshots are downloaded and hashed outside Git. User personally accepted Community-1 and authenticated locally. Real CPU regular/exclusive turns pass on EN/PL; constructed two-voice A-B-A-B returns two recurring IDs. All runs deny external networking; EN and two-voice runs also use empty HF_HOME. See validation/diarization.md. Clean full dependency environment independently provisions the same 10-file speaker manifest and passes full doctor.
+- Latest fast suite: 210 model-free tests; Ruff, TypeScript and frontend production build pass. Clean locked core/full environments were previously verified separately. All seven media formats, security, FIFO, cancellation/retry/recovery, editing, four exports and deletion have evidence.
+- History extension: nine actual Chromium fixture checks plus 20 actual cached-model EN/PL offline browser checks pass. Disk bytes match exports before/after saved edits; owned folders are deleted. Migration tests cover schema 1, SIGKILL before mkdir/after copying, restart locks, canonical edits/media, and repair in the new folder. See `docs/validation/local-history.md`.
+- Cached native MLX ASR and CPU Community-1 work offline in EN/PL and constructed recurring-voice cases, including real cancellation/retry. All three production snapshots are hashed outside Git; the user personally resolved model authorization.
+- Private long run: 3762.517 s normalized audio, Fast/Auto+CPU, wrapper 1732.320 s, peak 4598317056 bytes, 866 normal pressure samples. Four private exports/724 cues pass independent parsers; original retained. This establishes provisional Fast stability, not reference quality.
+- Fixed Polish 582.59 s / 1929 words: baseline Fast 21.2545%, Quality 20.2177% WER. Five standard MLX diagnostics all fail 15%; best 17.9368%. One pinned whisper.cpp/Metal Turbo beam5 run also fails:394 /  1929 = 20.4251%, 21.268 s CLI, 2137702400 bytes peak, 13 normal pressure samples. No production model/decoding change accepted. See `docs/validation/asr-diagnosis.md`.
+- Natural 120 s three-voice/overlap challenge completes offline: 29 segments, three recurring anonymous IDs, eight overlap segments, 58.712 s child total, 5270323200 bytes peak, 31 normal pressure samples. Label/boundary accuracy is unverified.
+- Instrumental 30 s challenge produces two spurious words and zero speaker turns. This is a recorded recognition failure. Added `no_speaker_turns` review warning without suppressing text; a real offline repeat verifies the warning and preserved output. Prior silence/mixed-language failures remain documented. See `docs/validation/challenges.md`.
 
-## Resumed work (2026-10-17)
+## Data and artifacts
 
-- User requested discoverable project-local history and disk exports. Implemented ignored `output/` default, source-preserving/resumable migration of the previous default store, automatic four-format copies after completion and saved edits, copy status/path UI, manual regeneration and startup repair. All 208 fast tests, Ruff, frontend checks/build and nine actual Chromium checks pass. The real empty legacy store migrated successfully; populated/edit/media cases pass deterministic tests. Evidence: validation/local-history.md. Normal app is running offline on8768; fixture harness8766 is stopped. Two real cached-model EN/PL browser runs pass20checks including automatic files, saved edits and deletion; raw artifacts are preserved in ignored output/validation/local-history.
-- ASR diagnosis retains the fixed Polish reference and all failures. Fast context-only improves WER to 346/1929=17.9368%, still failing 15%. Default fallback alone is identical to baseline; removing word timestamps also fails and is diagnostic only. Quality context-only regresses to 66.5111%; standard context+temperature fallback recovers to 18.6625%, still failing. No production model/decoding change has been accepted.
-- Heavy slot: alignment owns one pinned whisper.cpp/Metal Turbo comparison (weights downloading, build complete); root EN/PL actual offline file checks finished and the slot was returned. No production decoding/model change accepted. User defers independent manual boundary auditing to practical use; stop further gold-corpus acquisition and keep the90%metric unverified.
+- Active history/media/database/transcripts: ignored project `output/`; per-job files under `output/jobs/<job-id>/`. Existing previous default store is retained as a backup; validation files are not migrated. Deletion affects the active store only.
+- Prior private long exports: ignored `output/validation/long-recording/transcript.{txt,srt,vtt,json}`. These benchmark files are not fabricated application history. New browser JSON/screenshots: `output/validation/local-history/`.
+- Models: `~/Library/Caches/LocalScribe/models/`. Prior persistent references/results: `~/Library/Application Support/LocalScribe/validation/2026-10-16/`, including `localscribe-reference-research`, `localscribe-validation`, `localscribe-private-validation`, `localscribe-full-offline`, `localscribe-asr-diagnosis-2026-10-17`, and `localscribe-whisper-cpp-2026-10-17`. The exact private input path is only in external `run-source.json`.
+- New challenge raw/aggregate reports: `~/Library/Application Support/LocalScribe/validation/2026-10-17/challenges/`. Do not depend on temporary directories surviving restart. Raw recordings/transcripts/weights/credentials never enter Git.
 
-## Tracking
+## Remaining formal release evidence
 
-LS-001 through LS-011 are complete and closed on GitHub, with synchronized acceptance checkboxes and evidence. LS-012 remains open: functional FR-01–FR-13 and actual offline inference criteria pass; representative quality/performance/stability gates remain incomplete. Sanitized release decision: **NOT READY**, in validation/mvp-release.md.
+1. Polish WER target fails; neither production profile nor the alternative diagnostic is accepted for release quality. Broader searches are deferred in favor of practical use.
+2. English candidate `sbc005-en-300.89s.wav` / matching reference has 721 normalized words and two source uncertain-hearing spans. Representative profile comparison is not run. IU times are not gold speech boundaries.
+3. Manual attribution accuracy is deferred/unverified at the user's request. Do not claim 90%.
+4. Representative 30-minute performance with an accepted release profile remains pending. Available natural input: `CBIZ_LUZ_013.wav` (1801.301 s). The private 62-minute provisional run does not replace this specific gate.
+5. Challenge recognition failures remain explicit; functional success does not certify text or speaker accuracy. Update #12/release evidence on any later practical or formal evaluation; do not mark the Goal complete while required evidence is missing.
 
-## Previous paused checkpoint (2026-10-16)
-
-Paused explicitly by the user on 2026-10-16. All inference finished, no model/validation child remains, and both the isolated8767 server and normal8768 app were shut down cleanly. The user explicitly resumed work on 2026-10-17. Models remain cached outside Git; originals remain untouched. Commits through975515b are pushed; this checkpoint is the next commit.
-
-**Persistent artifacts:** `~/Library/Application Support/LocalScribe/validation/2026-10-16/` contains copied `localscribe-private-validation`, `localscribe-reference-research`, `localscribe-validation` and `localscribe-full-offline` directories plus `resume-checkpoint.json`. Do not depend on `/private/tmp` surviving reboot. Old metadata may contain temporary paths; substitute the corresponding persistent files. The exact private source path is only in the external private `run-source.json`, never Git.
-
-## Verified since model access resumed
-
-- Full offline EN/PL/recurring-voice browser flows: 27 checks; text/name edits, all exports, deletion, zero remote requests/page errors. Actual diarization cancellation and immutable retry pass.
-- Clean full runtime independently provisions identical speaker hashes and completes actual Quality/CPU inference offline.
-- The user's private62-minute recording completes full Fast/Auto + CPU offline: normalized3762.517 s; ASR74.215 s; diarization1647.990 s; wrapper1732.320 s; peak4598317056 bytes. All866 pressure samples normal, maximum gap2.010 s. Output724segments/5anonymousIDs; alignment_fallback retained. Private four-format exports and independent724-cue parsers pass; original retained. This is long stability for provisional Fast, not reference accuracy.
-- Natural Polish predeclared582.59 s text comparison: Fast410/1929=21.2545% WER; Quality390/1929=20.2177%. **Both fail15%; neither profile is accepted for release quality.** Quality's short run also sampled17.370 s system-pressure warning; do not conceal or attribute it exclusively to the model.
-- At the 2026-10-16 checkpoint, the fast suite had167 passes; Ruff and frontend build pass. Reproducible reference scripts and independent English parser review complete.
-
-## Remaining sequential work
-
-1. Investigate Polish deletion/substitution failures; evaluate accepted first fallback whisper.cpp/Metal if justified. Pinned whisper.cpp/Metal has been built; its one Turbo asset is downloading for a fixed-reference comparison. Broader model/decoder search is deferred under the user's practical-use preference. Never weaken15%/90% thresholds or reclassify the sample after seeing results.
-2. Compare both candidates on `sbc005-en-300.89s.wav` plus matching reference. The predeclared source window374.19–675.08 has721normalizedwords, zeroindecipherable text, two uncertain-hearing spans and audit clips. Its IU times are not gold speech turns. `scripts/prepare-sbc-reference.py` is independently reviewed and reproducible.
-3. Polish clip `pl-luz-000000-582590.wav` and matching reference contain100whole human-corrected segments; automatic times are diagnostic, ineligible for the hand-labelled90% attribution gate. The user has deferred independent manual auditing; do not spend more work on gold-corpus acquisition or claim that gate.
-4. Run natural `CBIZ_LUZ_013.wav` (1801.301 s) for representative30-minute performance with the accepted profile. If profile changes, repeat long-profile checks as needed. `CBIZ_BIO_051.wav` (3752.384 s) and AMI EN2009d (5324.373 s) are available backups.
-5. Run actual challenges sequentially: `en-sbc003-0540000-0660000-three-speaker.wav` (120 s, natural3voices/lexicaloverlap; reference diagnostic), `instrumental-piano-30s.wav` plus empty-speech reference, silence and documented mixed-language cases. No pending challenge is passed by source availability alone.
-6. Update sanitized release evidence and LS-012. Only12 remains open; Goal is not complete. Latest public source records: docs/research/reference-corpora.md. Private/reference content never enters Git.
-
-To start the normal app when it is stopped: `LOCALSCRIBE_PORT=8768 make start` (8765 was previously occupied). Check current process ownership first. All model inference remains sequential; coordinate a single heavy slot. Models are in the persistent default cache. User recording paths are not needed for the prepared public comparisons, but independent manual reference audits and final model quality remain unresolved.
+Start when stopped: `LOCALSCRIBE_PORT=8768 make start`; check current port ownership first. Preserve original media and ignored output; keep inference sequential.

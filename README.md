@@ -61,3 +61,5 @@ uv run --frozen --no-sync localscribe-spike /absolute/sample.wav \
 ```
 
 Fast tests require no models, credentials, or network. See [development](docs/development.md), [accepted specification](docs/specs/mvp.md), and [backlog](docs/tickets/README.md). Real reference scoring and network-disabled release gates are documented separately; offline environment flags alone do not prove them passed.
+
+Recognition can generate spurious text on instrumental music. If enabled diarization detects no speaker turns while text is present, LocalScribe preserves the text and displays a review warning. See the measured limitations in [release evidence](docs/validation/mvp-release.md) and [practical challenges](docs/validation/challenges.md).

@@ -68,6 +68,23 @@ def test_gaps_and_touching_boundaries_have_unknown_speaker():
     assert all(item["speakerId"] is None for item in result([segment()], turns, turns)["words"])
 
 
+def test_no_detected_speaker_turns_warns_without_discarding_recognized_text():
+    source = segment()
+    output = result([source])
+    assert output["originalText"] == source["text"]
+    assert output["segments"][0]["text"] == source["text"]
+    assert output["modelSegments"] == [source]
+    assert len(output["words"]) == 2
+    assert all(word["speakerId"] is None for word in output["words"])
+    assert [warning["code"] for warning in output["warnings"]] == ["no_speaker_turns"]
+
+
+def test_detected_speaker_turns_do_not_trigger_empty_turn_warning():
+    turns = [{"start": 0, "end": 2, "speaker": "A"}]
+    output = result([segment()], turns, turns)
+    assert output["warnings"] == []
+
+
 def test_overlap_requires_simultaneous_distinct_speakers():
     exclusive = [{"start": 0, "end": 2, "speaker": "A"}]
     sequential = exclusive + [{"start": 2, "end": 3, "speaker": "B"}]

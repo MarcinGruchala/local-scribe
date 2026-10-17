@@ -175,6 +175,13 @@ def assemble(
             )
     if not segments:
         notices.append({"code": "empty_transcript", "message": "No speech was transcribed."})
+    elif enabled and not raw_turns:
+        notices.append(
+            {
+                "code": "no_speaker_turns",
+                "message": "No speaker turns were detected. Review the transcript for possible spurious text.",
+            }
+        )
     # Repeated fallbacks are one actionable warning, rather than one per segment.
     notices = list({(item["code"], item["message"]): item for item in notices}.values())
     return Transcript.model_validate(

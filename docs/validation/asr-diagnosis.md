@@ -97,14 +97,14 @@ for `decoding.py` and
 `21f015e0d56c5e6194d07d86d772730940fff52d8f06d55838ae92ebccc24fbb`
 for `transcribe.py`.
 
-## Next independent engine comparison
+## whisper.cpp comparison
 
 The accepted first alternative is whisper.cpp with Metal. The official current
 [release v1.9.5](https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.5)
 pins commit `d1be6fde11ac6e0407606b4e42fe72d34add8037`. Its
 [build configuration](https://github.com/ggml-org/whisper.cpp/blob/v1.9.5/ggml/CMakeLists.txt)
-enables Metal by default on Apple platforms. The diagnostic will nevertheless
-request Metal explicitly and record the backend actually initialized.
+enables Metal by default on Apple platforms. The diagnostic requested Metal
+explicitly and recorded the backend actually initialized.
 
 The official downloader uses `ggerganov/whisper.cpp`. Public repository revision
 `5359861c739e955e79d9a303bcbc70fb988958b1` is ungated. Bounded reads of the two
@@ -121,13 +121,13 @@ Primary pointer sources:
 MLX snapshots cannot be supplied directly to whisper.cpp; the separate GGML files
 must be explicitly provisioned and verified outside Git.
 
-The authorized trial uses unquantized Turbo, the identical complete Polish
+The completed trial uses unquantized Turbo, the identical complete Polish
 clip, forced Polish, beam size 5, default decoder thresholds and fallback, no
 prompt, and full JSON token output. Following the user's later request to focus
 on practical use, this comparison is limited to Turbo; no additional large-v3
-download or broader decoder search will follow automatically. The trial uses
-OS network denial, a fresh process, and the existing pressure-sampling protocol.
-No result is recorded yet for whisper.cpp.
+download or broader decoder search will follow automatically. The trial used
+OS network denial, a fresh process, an empty `HF_HOME`, and the existing
+pressure-sampling protocol.
 
 The pinned source archive has 9,631,456 bytes and SHA-256
 `645445da884df6dbd52b30f82d7be7c01d1767c938714e477e786b88d529e9f4`.
@@ -136,7 +136,39 @@ libraries enabled, static libraries, Release mode, and the upstream
 `WHISPER_BUILD_IS_DEV=OFF` release flag. The resulting CLI reports version 1.9.5;
 binary SHA-256 is
 `2b2faafebfaa9c103ddc6de2f41707c35ff5220377b1e290bf89ff4fdc821922`.
-Model acquisition and the eventual runtime backend still require verification.
+Model acquisition completed in 592.970 seconds; exact size and SHA-256 match the
+immutable LFS pointer. Runtime logs verify `MTL0 (Apple M5 Pro)`, GPU backend
+initialization, and embedded Metal. No large-v3 weights were downloaded.
+
+| Trial | S | D | I | Errors / WER | CLI process wall | Peak CLI RSS |
+| --- | ---: | ---: | ---: | --- | ---: | ---: |
+| Turbo / Metal / beam size 5 | 136 | 241 | 17 | 394 / 20.4251% | 21.268 s | 2137702400 bytes |
+
+**This comparison also fails the unchanged 15% WER target.** The process timer
+includes model loading, transcription, token timestamps, and JSON output. It
+does not include model acquisition or compilation, and it does not measure the
+full diarization pipeline. All 13 pressure observations were normal (raw value
+1), with no unknown/unavailable observations, a maximum sampling gap of 2.010
+seconds, and no sampled warning/critical interval. This short run cannot pass
+the representative 30/60-minute performance or stability gates.
+
+The CLI completed successfully and wrote 483 segments and 3,611 token rows.
+Native JSON SHA-256:
+`a393dd3505095357dbd98a58406492a5fd60353bccc2ed7d32e0106027089e6c`.
+One nonempty segment containing one normalized word has an instantaneous
+64.540–64.540 second interval. Strict application assembly would reject it;
+the comparison does not establish production timestamp compatibility. No word
+alignment, diarization, or production integration pass is claimed.
+
+The diagnostic Python reporter initially searched for a `METAL` system-info
+label, whereas this build reports `MTL`. That post-inference check failed after
+the successful CLI call, parsing, scoring, and raw result persistence. Its
+original helper exit code 1 and original failed wrapper report remain intact.
+A separate corrected report records the actual successful inference, verified
+MTL initialization evidence, measured score, and the reporter correction. No
+inference was repeated and no native transcript/token output was edited. The
+helper predicate was corrected for reproducibility; this is a reporting fix,
+not a decoder or application change.
 
 The [CLI](https://github.com/ggml-org/whisper.cpp/blob/v1.9.5/examples/cli/cli.cpp)
 implements beam search and full JSON token timestamps (`-bs 5`, `-ojf`). Tokens
