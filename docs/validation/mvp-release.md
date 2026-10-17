@@ -123,7 +123,7 @@ Before model predictions, the Polish reference window was fixed to 0–582.59 s 
 
 **Neither profile passes the 15% target on this predeclared natural sample.** The earlier tiny FLEURS scores do not override this failure. The source was not reclassified or the threshold changed after observing results. Quality's short run also observed nine system-pressure warning samples, a 17.370 s sampled interval; this cannot be attributed exclusively to the model and is not a passed no-pressure gate. Fast's text run had all 11 pressure samples normal. Both returned the documented alignment fallback.
 
-Next after the user's explicit resume: investigate deletion/substitution causes and evaluate the accepted first fallback, whisper.cpp/Metal, before any engine/scope decision; complete English comparison, representative 30-minute performance with the selected profile and remaining challenge/manual reference gates. No release profile is accepted while these failures remain unresolved. See [reference provenance and preparation](../research/reference-corpora.md). Goal remains incomplete and paused at the user's request.
+Next after the user's explicit resume: investigate deletion/substitution causes and evaluate the accepted first fallback, whisper.cpp/Metal, before any engine/scope decision; complete English comparison, representative 30-minute performance with the selected profile and remaining challenge/manual reference gates. No release profile is accepted while these failures remain unresolved. See [reference provenance and preparation](../research/reference-corpora.md). The 2026-10-16 pause was ended by the user on 2026-10-17; the Goal remains incomplete.
 
 ## Project-local history follow-up (2026-10-17)
 

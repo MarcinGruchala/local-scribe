@@ -8,7 +8,7 @@ Verification: 208 model-free tests pass, including 19 disk-copy tests and 18 leg
 
 1. Completion creates four files identical to HTTP exports.
 2. Saved text/name edits update all four file contents.
-3. Folder/file clipboard controls copy the actual absolute paths.
+3. Storage/transcript folder clipboard controls copy the actual absolute paths.
 4. Reload and History preserve the selected saved transcript.
 5. Pending status polling stops after files become ready.
 6. A simulated copy error displays separate feedback without losing saved edits.
