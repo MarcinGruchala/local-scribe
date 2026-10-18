@@ -26,3 +26,7 @@ models/
 .local-data/
 # Private application history, media, and readable transcript exports.
 /output/
+
+# Per-machine agent state (shared project skills remain tracked).
+.claude/worktrees/
+.claude/settings.local.json

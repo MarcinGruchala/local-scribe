@@ -4,6 +4,10 @@ A local web application for transcribing imported English and Polish audio/video
 
 **Release status:** the complete functional application and real cached offline ASR plus diarization are verified. Representative quality, speaker accuracy and sustained performance gates remain pending. See [progress](docs/implementation-progress.md) and [release evidence](docs/validation/mvp-release.md). Deterministic fixtures establish software behavior, not model accuracy.
 
+## AI development setup
+
+[AGENTS.md](AGENTS.md) holds the shared project instructions. Claude Code imports it through `CLAUDE.md`. Project skills live in `.agents/skills/`; `.claude/skills` points to that same directory. No global skill installation is required. See the [skill catalog and compatibility notes](docs/agents/skills.md).
+
 ## One-time setup
 
 Requirements: native arm64 macOS, Python 3.11, `uv`, Node.js 22.12 or newer with npm, FFmpeg and FFprobe, and enough storage for models and recordings (allow approximately 15 GB for setup). Install native prerequisites through your preferred package manager.
