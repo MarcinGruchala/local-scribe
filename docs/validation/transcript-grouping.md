@@ -1,6 +1,6 @@
 # Transcript grouping and persistent history validation
 
-Scope: #15 (shared saved-operation history) and #16 (deterministic whole-transcript grouping). Base `4e4b387`; backend integration `858efda`; final UI/test/documentation changes are identified by the containing commit/PR. This is not acceptance of #17–#19, a new ASR quality claim, a Mac installation test or authorization to merge/deploy.
+Scope: #15 (shared saved-operation history) and #16 (deterministic whole-transcript grouping). Base `4e4b387`; backend integration `858efda`; UI/test/documentation commit `693dd1f`, and reviewed edge-case fixes `268ad45`; final documentation is identified by the containing commit/PR. This is not acceptance of #17–#19, a new ASR quality claim, a Mac installation test or authorization to merge/deploy.
 
 ## Executed environment and commands
 
@@ -19,7 +19,7 @@ unset UI_CONTRACT_FIXTURE LOCALSCRIBE_GROUPING_TEST_ROOT
 .venv/bin/python tests/run_grouping_browser.py
 ```
 
-The final integrated core run at this checkpoint: **233 tests passed**, Ruff passed, TypeScript passed, production build passed, whitespace check passed. One dependency deprecation warning remains (`starlette.testclient` using `httpx`). The new feature tests cover grouping/history/HTTP/export behavior; no accuracy metrics are inferred from them.
+The final integrated core run at this checkpoint: **242 tests passed**, Ruff passed, TypeScript passed, production build passed, whitespace check passed. One dependency deprecation warning remains (`starlette.testclient` using `httpx`). The new feature tests cover grouping/history/HTTP/export behavior; no accuracy metrics are inferred from them.
 
 Earlier full runs intermittently failed the pre-existing benchmark process timing tests (`test_timeout_stops_uncooperative_child_and_process_group` and `test_interruption_stops_own_child_and_preserves_sanitized_failure`). They also failed before backend integration; a clean-base targeted run passed them, and the final full integrated run passed both. Their timing sensitivity has not been fixed or reclassified as a feature regression.
 
@@ -43,11 +43,13 @@ Covered workflows:
 - Fresh HTTP process/browser retain exact saved text/history; undoing the linear stack restores original grouping and redoing restores exact saved text, partitions and manual boundaries.
 - Explicit recording deletion removes its directory and history endpoint ownership; a synthetic shared-model ownership sentinel remains unchanged.
 
-Synthetic local evidence: `/opt/data/profiles/hefajstos/cache/scratch/local-scribe-grouping-pz0m6hgg/` (`browser-grouping-results.json`, `browser-restart-results.json`, screenshots and pre-restart snapshot). Scratch artifacts are not permanent project data; rerun the committed scripts to regenerate evidence.
+Synthetic local evidence: `/opt/data/profiles/hefajstos/cache/scratch/local-scribe-grouping-shcdbmmk/` (`browser-grouping-results.json`, `browser-restart-results.json`, screenshots and pre-restart snapshot). Scratch artifacts are not permanent project data; rerun the committed scripts to regenerate evidence.
 
 ## Test-first and review evidence
 
 Backend vertical cycles demonstrated missing history/grouping/API/exports before implementing them. The parent independently read the backend and ran the integrated suite. UI browser RED cycles demonstrated missing preview, Apply/history controls, grouped reading view and export selectors before adding them. An independent frontend reviewer found that unchanged search/playback IDs could stay hidden after grouping; the parent reproduced actual Chromium `false !== true`, a separate fix context changed the source-partition reveal dependencies, and both the contract and real-backend browser flows passed afterward. The source partition signature excludes draft text, preserving native textarea editing/undo behavior.
+
+Final independent frontend/harness review passed on `693dd1f` with only the documented optional fallback-sizing suggestion. Backend review additionally found backwards-timestamp TXT sorting and enclosing-source overlap gaps: new regression tests were observed failing before the focused `268ad45` fixes. Final backend re-review passed and independently reran all 29 focused API/history tests. The parent independently read the fixes, reran all 242 tests and repeated the real-backend/restart Chromium scenario after integration. No security findings or blocking review items remain.
 
 Early `UI_CONTRACT_FIXTURE=1` runs explicitly stubbed grouping HTTP responses to test the UI in isolation. They are not counted as backend/restart acceptance. One early Chromium renderer crash occurred during an isolated UI run; a diagnostic rerun showed no cgroup OOM events and passed, as did the complete real-backend run. The cause of that single crash was not established.
 
