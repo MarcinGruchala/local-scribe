@@ -2,6 +2,14 @@
 
 Updated: 2026-10-18. Delivery status: **MVP ACCEPTED BY MARCIN; closeout and merge authorized.**
 
+## Transcript grouping implementation (#15, #16)
+
+Marcin authorized model-free grouping/history implementation and one review PR. Merge, issue closure, AI proofreading, model downloads and Mac access are not authorized by this task. Base: `4e4b387`; workspace: `/opt/data/dev/github/MarcinGruchala/local-scribe/.worktrees/transcript-grouping`, branch `feat/transcript-grouping`. Shared contract: [transcript-grouping](specs/transcript-grouping.md).
+
+Backend integrated as `858efda` (cherry-picked from `df953a6`): persistent history/checkpoint migration, grouping/split, API and versioned exports. Parent independently read the implementation. The final integrated `make check`/`make build` run at this checkpoint passed: 233 tests, Ruff, TypeScript and production assets; one dependency deprecation warning remains. Earlier runs exposed two existing benchmark timing flakes, explicitly recorded rather than hidden. The legacy-copy test-only recursive crash hook was corrected after reproducing its failure on clean `4e4b387`; no production legacy-copy logic was changed.
+
+Actual Chromium with real HTTP completed 16 checks over 400 synthetic segments, including one-preview/one-Apply, source barriers/IDs, manual split/no-op, stale-tab drafts, saved exports, desktop/narrow layouts, HTTP-process/browser restart, Undo/Redo and deletion. The independent frontend review's source-reveal finding was reproduced RED, fixed separately, and verified in real Chromium. Exact commands, test-first evidence, artifact paths and limits: [grouping validation](validation/transcript-grouping.md). Backend independent review and remote PR/check readback remain the final delivery gates at this checkpoint. No private app store or models have been opened or changed.
+
 ## Closeout decision
 
 Marcin practically tested and improved the application, accepted this MVP as complete, and requested closure of its tickets and merge to `main`. Specification section 13 and the release report record that explicit acceptance. The prior NOT READY status is superseded for this personal-use iteration. Failed and unfinished formal quality/benchmark targets remain documented accepted limitations; none is relabelled a numerical pass. No additional reference audit or model search is required for closeout.

@@ -4,6 +4,7 @@ import { api, languageName, preciseTimestamp, timestamp } from './api';
 import type { Job, Segment, Transcript } from './api';
 import Avatar from './Avatar';
 import Timeline from './Timeline';
+import TranscriptTools from './TranscriptTools';
 import type { TimelineTrack } from './Timeline';
 import { IconBack, IconCheck, IconChevron, IconDownload, IconForward, IconPause, IconPlay, IconSearch } from './icons';
 
@@ -74,8 +75,18 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
   const [rate, setRate] = useState(1); const [playbackError, setPlaybackError] = useState('');
   const [follow, setFollow] = useState(true); const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState(''); const [matchIndex, setMatchIndex] = useState(0);
+  const [exportSource, setExportSource] = useState('current'); const [exportLayout, setExportLayout] = useState('grouped');
   const audio = useRef<HTMLAudioElement>(null); const segmentList = useRef<HTMLDivElement>(null);
   const segments = transcript.segments;
+  const sourceById = useMemo(() => new Map(segments.map(segment => [segment.id, segment])), [segments]);
+  const blocks = useMemo(() => {
+    const saved = transcript.grouping?.blocks;
+    // Legacy and test clients may still return only the original v1 source segments.
+    if (saved && saved.flatMap(block => block.segmentIds).join('\0') === segments.map(segment => segment.id).join('\0')) return saved;
+    return segments.map(segment => ({ ...segment, segmentIds: [segment.id], text: segment.editedText ?? segment.text }));
+  }, [segments, transcript.grouping]);
+  // Only source partitions (including their React keys) change the rows' DOM placement.
+  const sourcePartitions = JSON.stringify(blocks.map(block => [block.id, block.segmentIds]));
   const activeSegment = useMemo(() => segments.find(segment => time >= segment.start && time < segment.end), [segments, time]);
   const dirty = Object.keys(texts).length > 0 || Object.keys(names).length > 0;
   const totalDuration = duration || transcript.duration || job.duration || segments.reduce((end, segment) => Math.max(end, segment.end), 0);
@@ -131,6 +142,8 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
     const container = segmentList.current;
     const element = container?.querySelector<HTMLElement>(`[data-segment="${CSS.escape(id)}"]`);
     if (!container || !element) return;
+    const sources = element.closest('details');
+    if (sources) sources.open = true;
     const top = container.scrollTop + element.getBoundingClientRect().top - container.getBoundingClientRect().top - container.clientHeight * .3;
     container.scrollTo({ top, behavior: smooth ? 'smooth' : 'instant' });
   }, []);
@@ -140,12 +153,18 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
     if (!follow || !activeSegment || !container || container.contains(document.activeElement)) return;
     reveal(activeSegment.id, playing);
     // `playing` only picks the scroll style; it must not re-trigger scrolling by itself.
-  }, [activeSegment?.id, follow, reveal]);
+  }, [activeSegment?.id, follow, reveal, sourcePartitions]);
   useEffect(() => {
     setMatchIndex(0);
     if (matches[0]) reveal(matches[0]);
     // Jump to the first match only when the search text changes, not on every edit.
   }, [needle]);
+  useEffect(() => {
+    // A saved regroup can remount the current result inside collapsed sources.
+    // Keep its index and let search take priority over audio when both need revealing.
+    if (currentMatch) reveal(currentMatch);
+    // Deliberately depend on structure, not matches/currentMatch: drafts must not jump.
+  }, [sourcePartitions, reveal]);
 
   const save = useCallback(async () => {
     setSaving(true); setSaveError(''); setFeedback('');
@@ -204,6 +223,25 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
     window.addEventListener('keydown', shortcut); return () => window.removeEventListener('keydown', shortcut);
   }, [dirty, saving, save, togglePlayback, seek, time]);
 
+  async function discard() {
+    if (!window.confirm('Discard unsaved transcript changes and load the latest saved revision?')) return;
+    setSaving(true); setSaveError('');
+    try { const latest = await api.transcript(job.id); onSaved(latest); setTexts({}); setNames({}); onDirtyChange(false); }
+    catch (error) { setSaveError(messageOf(error)); }
+    finally { setSaving(false); }
+  }
+  async function splitBefore(beforeSegmentId: string) {
+    setSaving(true); setSaveError('');
+    try { onSaved(await api.splitGrouping(job.id, transcript.revision, beforeSegmentId)); }
+    catch (error) { setSaveError(messageOf(error)); }
+    finally { setSaving(false); }
+  }
+  function sourceRow(segment: Segment, index: number) {
+    return <SegmentRow key={segment.id} segment={segment} value={valueOf(segment)} name={speakerName(segment.speakerId)} color={colorOf(segment.speakerId)}
+      continued={index > 0 && segments[index - 1].speakerId === segment.speakerId} draft={segment.id in texts}
+      playing={segment.id === activeSegment?.id} selected={segment.id === selectedId} match={segment.id === currentMatch} dimmed={Boolean(needle) && !matchSet.has(segment.id)}
+      ready={ready} saving={saving} onText={onText} onSeek={seek} onSelect={onSelect} />;
+  }
   const modifier = isMac ? '⌘' : 'Ctrl';
   const progress = duration ? Math.min(100, time / duration * 100) : 0;
   const inspectedStats = inspected ? { words: valueOf(inspected).trim().split(/\s+/).filter(Boolean).length, length: inspected.end - inspected.start } : null;
@@ -213,6 +251,7 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
       <div className="studio-title">{heading}</div>
       <div className="studio-actions">
         {dirty ? <span className="save-state unsaved" title="Save before exporting or opening another recording."><i aria-hidden="true" />Unsaved changes</span> : <span className="save-state"><IconCheck size={14} />{transcript.revision > 0 ? `Saved · revision ${transcript.revision}` : 'Original transcript'}</span>}
+        {dirty && <button type="button" className="button secondary" disabled={saving} onClick={discard}>Discard changes</button>}
         <button type="button" className="button primary" disabled={!dirty || saving} onClick={save} title={`Save (${modifier}+S)`}>{saving ? 'Saving…' : 'Save changes'}</button>
       </div>
     </header>
@@ -237,11 +276,19 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
         </div>
       </div>
       <div className="segments" ref={segmentList} role="region" aria-label="Transcript segments" tabIndex={0}>
-        {segments.length === 0 ? <p className="empty">No speech was detected in this recording.</p> : segments.map((segment, index) => <SegmentRow
-          key={segment.id} segment={segment} value={valueOf(segment)} name={speakerName(segment.speakerId)} color={colorOf(segment.speakerId)}
-          continued={index > 0 && segments[index - 1].speakerId === segment.speakerId} draft={segment.id in texts}
-          playing={segment.id === activeSegment?.id} selected={segment.id === selectedId} match={segment.id === currentMatch} dimmed={Boolean(needle) && !matchSet.has(segment.id)}
-          ready={ready} saving={saving} onText={onText} onSeek={seek} onSelect={onSelect} />)}
+        {segments.length === 0 ? <p className="empty">No speech was detected in this recording.</p> : blocks.map(block => {
+          const sources = block.segmentIds.map(id => sourceById.get(id)!);
+          if (sources.length === 1) return sourceRow(sources[0], segments.indexOf(sources[0]));
+          const isPlaying = sources.some(segment => segment.id === activeSegment?.id);
+          return <article key={block.id} data-block={block.id} className={`transcript-block${isPlaying ? ' playing' : ''}`} style={colorStyle(colorOf(block.speakerId))}>
+            <header><strong>{speakerName(block.speakerId)}</strong><button type="button" className="timestamp" disabled={!ready} onClick={() => seek(block.start)} aria-label={`Seek block to ${timestamp(block.start)}`}>{preciseTimestamp(block.start)}–{preciseTimestamp(block.end)}</button></header>
+            <p className="block-text">{sources.map(segment => valueOf(segment).trim()).filter(Boolean).join(' ')}</p>
+            <details className="block-sources"><summary>Source segments ({sources.length}) · edit or split</summary>{sources.map((segment, index) => <div key={segment.id}>
+              {index > 0 && <button type="button" className="text-button split-boundary" disabled={dirty || saving} onClick={() => splitBefore(segment.id)} aria-label={`Split before ${segment.id}`}>Split before {preciseTimestamp(segment.start)}</button>}
+              {sourceRow(segment, segments.indexOf(segment))}
+            </div>)}</details>
+          </article>;
+        })}
       </div>
     </section>
 
@@ -262,6 +309,9 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
     </div>
 
     <aside className="inspector" aria-label="Recording details">
+      <InspectorSection title="Transcript tools">
+        <TranscriptTools transcript={transcript} dirty={dirty} saving={saving} onBusy={setSaving} onSaved={onSaved} />
+      </InspectorSection>
       <InspectorSection title="Recording">
         <dl className="properties">
           <div><dt>File</dt><dd title={job.name}>{job.name}</dd></div>
@@ -304,8 +354,10 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
       </InspectorSection>
 
       <InspectorSection title="Export">
-        <div className="export-buttons">{['txt', 'srt', 'vtt', 'json'].map(format => <a className="button secondary" key={format} href={api.export(job.id, format)} download><IconDownload size={13} />{format.toUpperCase()}</a>)}</div>
-        <p className="inspector-hint">{dirty ? 'Exports include saved edits only.' : 'Exports use the saved transcript.'}</p>
+        <label>Export source<select aria-label="Export source" value={exportSource} onChange={event => setExportSource(event.target.value)}><option value="current">Current saved</option><option value="original">Original ASR</option></select></label>
+        <label>Export layout<select aria-label="Export layout" value={exportLayout} onChange={event => setExportLayout(event.target.value)}><option value="grouped">Grouped (JSON v2)</option><option value="segmented">Source segments (JSON v1)</option></select></label>
+        <div className="export-buttons">{['txt', 'srt', 'vtt', 'json'].map(format => <a className="button secondary" key={format} href={api.export(job.id, format, exportSource, exportLayout)} download><IconDownload size={13} />{format.toUpperCase()}</a>)}</div>
+        <p className="inspector-hint">{dirty ? 'Exports include saved edits only.' : 'Exports use the saved transcript.'} SRT/VTT always keep source cue timings. Original ASR JSON is v1.</p>
       </InspectorSection>
       {inspectorExtras}
     </aside>
