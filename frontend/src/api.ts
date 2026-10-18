@@ -13,7 +13,6 @@ export type Job = {
 };
 export type Segment = { id: string; start: number; end: number; speakerId: string | null; text: string; editedText: string | null; overlap: boolean };
 export type Speaker = { id: string; displayName: string };
-export type RecordingView = 'transcript' | 'review';
 export type Transcript = { schemaVersion: 1; jobId: string; revision: number; language: string | null; duration?: number; segments: Segment[]; speakers: Speaker[]; warnings: Warning[]; provenance: Record<string, unknown> };
 export type ModelReadiness = { ready: boolean; message?: string; missing?: string[] };
 export type Health = {
@@ -103,4 +102,15 @@ export function timestamp(seconds: number): string {
   const value = Math.max(0, Math.floor(seconds || 0));
   const h = Math.floor(value / 3600); const m = Math.floor(value % 3600 / 60); const s = value % 60;
   return `${h ? `${h}:` : ''}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+/** Timestamp with tenths of a second, used where editors need finer positions. */
+export function preciseTimestamp(seconds: number): string {
+  const tenths = Math.floor(Math.max(0, seconds || 0) * 10 + 1e-6) % 10;
+  return `${timestamp(seconds)}.${tenths}`;
+}
+export function languageName(code: string | null | undefined): string {
+  return code === 'pl' ? 'Polish' : code === 'en' ? 'English' : code === 'auto' ? 'Auto detect' : code || 'Unknown';
+}
+export function createdDate(job: Job): Date {
+  return new Date(typeof job.createdAt === 'number' ? job.createdAt * 1000 : job.createdAt);
 }

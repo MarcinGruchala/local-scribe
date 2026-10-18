@@ -4,6 +4,8 @@ Updated: 2026-10-18. Branch: `codex/mvp-implementation`. **Goal is not complete.
 
 ## Current checkpoint
 
+- UI redesign (2026-10-18, user request): dark theme for the whole app and a unified recording studio replacing the separate Transcript / Listen & review views — sidebar navigation, transcript editor with speaker column, details inspector (speakers with talk-time share, current/selected segment, exports, local files), player dock with a zoomable speaker timeline, transcript search and keyboard shortcuts. No API or backend change. Fixture Chromium suites `browser-smoke`, `browser-review`, `browser-history`, `browser-states`, `browser-local-files` and `browser-navigation` pass; view-toggle steps were replaced with studio checks. `browser-restored-transcript` (needs the restored private recording) was updated for the removed toggle but not rerun; the model-backed `browser-real-*` scripts needed no change and were not rerun.
+
 - The previously uncommitted history/review frontend work is now included in the repository: searchable paginated transcript history, direct listening/editing view, playback controls and draft-preserving navigation. Verification on 2026-10-18: 213 backend tests, Ruff, TypeScript/build and both new Chromium scripts pass (six review checks and five history checks). Private output remains ignored.
 
 - The user resumed work and requested discoverable project-local history. Commit `39a7cc4` is pushed: ignored `output/` default, source-preserving/resumable legacy-store migration, automatic TXT/SRT/VTT/JSON after completion and saved edits, copyable folder paths, separate copy failures and repair. Decoder findings are documented in pushed `da6f1ef` and the latest validation update.

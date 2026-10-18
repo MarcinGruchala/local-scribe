@@ -45,25 +45,24 @@ const ROOT = '/private/tmp/localscribe-browser';
     await page.getByRole('button', { name: 'Listen & review Żółć archived interview.wav', exact: true }).click();
     await page.getByRole('slider', { name: 'Audio position', exact: true }).waitFor();
     assert.equal(new URLSearchParams(new URL(page.url()).hash.slice(1)).get('job'), older.id);
-    assert.equal(new URLSearchParams(new URL(page.url()).hash.slice(1)).get('view'), 'review');
+    assert.equal(new URLSearchParams(new URL(page.url()).hash.slice(1)).get('from'), 'history');
     assert.equal(await page.locator('.segment textarea').first().inputValue(), savedTranscript.segments[0].editedText ?? savedTranscript.segments[0].text);
     await page.waitForFunction(() => document.querySelector('audio').readyState >= 1);
     await page.getByRole('slider', { name: 'Audio position', exact: true }).fill('2.4');
     assert(Math.abs(await page.locator('audio').evaluate(audio => audio.currentTime) - 2.4) < 0.15);
     await page.reload(); await page.getByRole('slider', { name: 'Audio position', exact: true }).waitFor();
-    record('historical recordings open directly in review with saved text, seekable audio and a reloadable URL');
+    record('historical recordings open directly in the recording studio with saved text, seekable audio and a reloadable URL');
 
     const draft = 'Unsaved archive review draft.';
     await page.locator('.segment textarea').first().fill(draft);
     const dialogs = [];
     const dismiss = dialog => { dialogs.push(dialog.type()); return dialog.dismiss(); };
     page.on('dialog', dismiss);
-    await page.getByRole('button', { name: 'Transcript', exact: true }).click();
-    await page.getByRole('button', { name: 'Listen & review', exact: true }).click();
+    await page.getByRole('slider', { name: 'Audio position', exact: true }).fill('1');
     assert.equal(await page.locator('.segment textarea').first().inputValue(), draft);
     assert.deepEqual(dialogs, []);
     await historyLink().click();
-    await page.waitForFunction(() => new URLSearchParams(window.location.hash.slice(1)).get('view') === 'review');
+    await page.waitForFunction(id => new URLSearchParams(window.location.hash.slice(1)).get('job') === id, older.id);
     assert.equal(await page.locator('.segment textarea').first().inputValue(), draft);
     assert.deepEqual(dialogs, ['confirm']);
     page.removeListener('dialog', dismiss);
@@ -71,7 +70,7 @@ const ROOT = '/private/tmp/localscribe-browser';
     await page.locator('.history-back').click();
     await page.getByRole('heading', { name: 'Transcript history', exact: true }).waitFor();
     await page.getByText('2 of 2 saved recordings · newest first', { exact: true }).waitFor();
-    record('view switching keeps drafts without prompting, while leaving a dirty historical transcript requires explicit discard');
+    record('listening keeps drafts without prompting, while leaving a dirty historical transcript requires explicit discard');
 
     for (const width of [1280, 760, 390]) {
       await page.setViewportSize({ width, height: 900 });
