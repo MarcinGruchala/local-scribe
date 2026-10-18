@@ -3,3 +3,30 @@
 .env.*
 !.env.example
 .DS_Store
+.playwright-mcp/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+*.sqlite*
+*.db
+*.wav
+*.mp3
+*.m4a
+*.mp4
+*.mov
+*.flac
+*.ogg
+*.safetensors
+*.npz
+models/
+.local-data/
+# Private application history, media, and readable transcript exports.
+/output/
+
+# Per-machine agent state (shared project skills remain tracked).
+.claude/worktrees/
+.claude/settings.local.json

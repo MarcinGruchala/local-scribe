@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LocalScribe MVP Plan</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/Users/marcin/.agents/skills/html-plan/runtime/htmlplan.css">
+<script src="/Users/marcin/.agents/skills/html-plan/runtime/htmlplan.js" defer></script>
+<style data-mock-shared>
+.ui {font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#17233c;background:#fff;border:1px solid #dbe2ec;border-radius:12px;overflow:hidden;}
+.hd {padding:14px 18px;background:#f4f7fc;font-weight:700;border-bottom:1px solid #dbe2ec;}
+.body {padding:18px;} .row {padding:12px 18px;border-bottom:1px solid #edf0f5;}
+.muted {color:#65738b;font-size:12px;} .field {margin:8px 0;padding:9px 12px;border:1px solid #dbe2ec;border-radius:7px;}
+.drop {border:2px dashed #8ca4cc;border-radius:10px;padding:25px 12px;text-align:center;background:#f7faff;}
+.btn {display:inline-block;padding:8px 12px;border-radius:7px;background:#2458bf;color:white;margin:6px 6px 0 0;}
+.secondary {background:#eaf0fb;color:#2458bf;} .tag {font-size:11px;border-radius:6px;padding:3px 7px;background:#eaf0fb;color:#2458bf;}
+.time {color:#2458bf;font-variant-numeric:tabular-nums;} .warn {background:#fff3db;color:#75500b;padding:12px;}
+.ok {color:#19714c;} .bad {color:#a72d36;} .edit {border-left:3px solid #2458bf;padding-left:12px;}
+</style>
+<body>
+<header>
+  <h1>Local Transcription in LocalScribe</h1>
+  <details class="thread"><summary>Why · 3 requests</summary>
+    <doc-quote via="prompt" from="Marcin">Rozwiązanie ma korzystać z jakiegoś modelu który będe móg pobrać przez LM studio które mam nie wiem jakiś whisper coś co będzie dobra dla języka angielskiego i polskiego z rozróżnianiem osób mówiących.</doc-quote>
+    <doc-quote via="prompt" from="Marcin">LM studio albo ollama chyba że masz coś innego na myśli? jestem otwarty lm studio mam poprostu zainstalowane</doc-quote>
+    <doc-quote via="prompt" from="Marcin">Wgrywanie gotowych plików audio i wideo</doc-quote>
+  </details>
+</header>
+<main>
+<doc-plan>
+  <doc-claim>
+    <p>The user can import English and Polish audio or video files.</p>
+    <doc-mock frame="none" w="440" caption="The first version uses existing files."><template>
+      <div class="ui"><div class="hd">LocalScribe <span class="tag">Local only</span></div><div class="body">
+      <div class="drop" data-ref="upload"><b>Drop an audio or video file</b><br><span class="muted">WAV · MP3 · M4A · FLAC · OGG · MP4 · MOV<br>Up to 2 GiB / 2 hours</span></div>
+      <div class="field">Language: Auto ▾</div><div class="field">Profile: Fast ▾</div>
+      <div class="field">☑ Separate speakers · Count: Auto ▾</div>
+      <span class="btn">Transcribe</span><div class="muted">Files stay on this Mac.</div></div></div>
+    </template><doc-pin ref="upload" title="File import">No microphone capture in this version.</doc-pin></doc-mock>
+    <doc-claim>
+      <p>The backend validates and saves each file before it queues work.</p>
+      <doc-calls title="Import · sketch" caption="These paths are proposed new files.">
+<script type="text/plain">
++ **create_job**(file, options)                 @ backend/src/localscribe/api.py:1
++   **require_ready**(options)                  @ backend/src/localscribe/models.py:1
++   **import_media**(file)                      @ backend/src/localscribe/media.py:1
++     **probe_audio**(stored_path)              @ backend/src/localscribe/media.py:1
++   **enqueue_job**(media, options)             @ backend/src/localscribe/jobs.py:1
+</script>
+      </doc-calls>
+      <doc-claim at="backend/src/localscribe/media.py:1">
+        <p><b>backend/src/localscribe/media.py:1</b> · import_media()</p>
+        <doc-code title="Import policy · sketch" lang="py"><script type="text/plain">
+MAX_UPLOAD_BYTES = 2 * 1024**3
+MAX_DURATION_SECONDS = 2 * 60 * 60
+
+# Stream into an ID-based path, then probe the file.
+# Reject missing audio, invalid data, and excessive duration.
+# Remove partial files on any import error.
+# Pass FFmpeg arguments as a list, never a shell string.
+# Publish the queued job only after durable storage.
+</script></doc-code>
+      </doc-claim>
+    </doc-claim>
+    <doc-claim>
+      <p>The user selects the source language without translation.</p>
+      <doc-schema id="job-options" lang="ts" title="JobOptions · sketch"><script type="text/plain">
+type JobOptions = {
+  language: "auto" | "en" | "pl";
+  profile: "fast" | "quality";
+  diarization: boolean;
+  speakerCount: number | null; // 1–10 or automatic
+};
+// Quality is visible only after its model passes the spike.
+</script></doc-schema>
+    </doc-claim>
+  </doc-claim>
+
+  <doc-claim>
+    <p>The user can follow, cancel, and retry a local job.</p>
+    <doc-machine name="job" caption="Each retry starts a new attempt.">
+<script type="text/plain">
+machine job initial queued
+state queued # The file waits for the worker.
+state running # The worker shows its stage.
+state completed final # The transcript is ready.
+state cancelled final # This attempt stops.
+state failed final # This attempt fails.
+| queued | running | completed |
+| cancelled | failed | . |
+queued -claim-> running : start
+running -publish-> completed : save
+queued -cancel-> cancelled : cancel
+running -cancel-> cancelled : stop
+running -error-> failed : error
+</script>
+      <div data-state="queued"><doc-mock frame="none" w="400"><template><div class="ui"><div class="hd">interview.m4a</div><div class="body">Queued · position 2<br><span class="btn secondary">Cancel</span></div></div></template></doc-mock></div>
+      <div data-state="running"><doc-mock frame="none" w="400"><template><div class="ui"><div class="hd">interview.m4a</div><div class="body">Transcribing · elapsed 03:14<br><span class="muted">The model has no exact progress estimate.</span><br><span class="btn secondary">Cancel</span></div></div></template></doc-mock></div>
+      <div data-state="completed"><doc-mock frame="none" w="400"><template><div class="ui"><div class="hd">interview.m4a</div><div class="body"><span class="ok">Completed</span> · 2 speakers<br><span class="btn">Open transcript</span></div></div></template></doc-mock></div>
+      <div data-state="cancelled"><doc-mock frame="none" w="400"><template><div class="ui"><div class="hd">interview.m4a</div><div class="body">Cancelled · source file kept<br><span class="btn">Retry</span><span class="btn secondary">Delete</span></div></div></template></doc-mock></div>
+      <div data-state="failed"><doc-mock frame="none" w="400"><template><div class="ui"><div class="hd">interview.m4a</div><div class="body"><span class="bad">Interrupted by application shutdown</span><br><span class="btn">Retry</span><span class="btn secondary">Delete</span></div></div></template></doc-mock></div>
+    </doc-machine>
+    <doc-claim>
+      <p>One worker runs the model stages in a child process.</p>
+      <doc-calls title="Inference · sketch" caption="The API stays available during inference.">
+<script type="text/plain">
++ **run_attempt**(job_id, attempt_id)            @ backend/src/localscribe/pipeline.py:1
++   **normalize_audio**(source)                 @ backend/src/localscribe/media.py:1
++   **transcribe**(audio, local_model)          @ backend/src/localscribe/engines/asr_mlx.py:1
++   **diarize**(audio, local_model)             @ backend/src/localscribe/engines/diarization.py:1
++   **assign_speakers**(words, turns)            @ backend/src/localscribe/alignment.py:1
++   **publish_if_active**(attempt_id, result)   @ backend/src/localscribe/jobs.py:1
+</script>
+      </doc-calls>
+    </doc-claim>
+    <doc-claim>
+      <p>A failed speaker stage keeps the text with a warning.</p>
+      <doc-mock frame="none" w="440"><template><div class="ui"><div class="hd">Completed with warnings</div><div class="warn">Speaker separation failed. Text is available without speaker labels.</div><div class="body"><span class="time">00:12</span> <span class="tag">Unknown speaker</span><p>Here is the text from the recording.</p></div></div></template></doc-mock>
+      <doc-ask id="speaker-failure"><p>What happens if speaker separation fails?</p>
+        <label><input type="radio" name="speaker_failure" value="keep-text" checked> Keep the text with a warning <small>Speaker labels remain unavailable.</small></label>
+        <label><input type="radio" name="speaker_failure" value="fail-job"> Fail the complete job <small>No partial transcript appears in the UI.</small></label>
+      </doc-ask>
+      <doc-note tone="ok">Marcin accepted this default on 2026-10-16: keep the text with a warning.</doc-note>
+    </doc-claim>
+  </doc-claim>
+
+  <doc-claim>
+    <p>The user can play, read, and correct speaker-labelled text.</p>
+    <doc-mock frame="none" w="440" caption="Text edits and speaker names stay with this recording."><template>
+      <div class="ui"><div class="hd">Interview <span class="tag">EN</span></div><div class="row">▶ ━━━━━●━━━━━ <span class="muted">01:24 / 28:31</span></div>
+      <div class="row"><span class="time" data-ref="time">01:18</span> <span class="tag">Speaker 1 · Rename</span><p>What would you change in the first version?</p></div>
+      <div class="row"><span class="time">01:24</span> <span class="tag">Speaker 2</span><p class="edit" data-ref="edit">I would start with file import and clear speaker labels.</p><span class="btn">Save text</span><span class="muted">Saved locally</span></div>
+      </div>
+    </template><doc-pin ref="time" title="Seek audio">The timestamp starts local playback.</doc-pin><doc-pin ref="edit" title="Correct text">Save before export.</doc-pin></doc-mock>
+    <doc-claim>
+      <p>Time overlap assigns words to speakers without inferring identity.</p>
+      <doc-code title="Speaker assignment rules · sketch" lang="py"><script type="text/plain">
+# Use word timestamps from ASR and exclusive speaker turns.
+# Assign the greatest positive time overlap to each word.
+# Break ties by earliest turn start, then speaker ID.
+# Keep a null speaker when no turn overlaps the word.
+# Use segment overlap only if word timestamps are absent.
+# Mark that fallback with an alignment warning.
+# Split display text at speaker changes and model boundaries.
+# Keep regular turns to mark overlapping speech.
+# Speaker names apply to this recording only.
+</script></doc-code>
+    </doc-claim>
+    <doc-claim>
+      <p>The backend preserves model text separately from user edits.</p>
+      <doc-schema id="segment" lang="ts" title="Segment · sketch"><script type="text/plain">
+type Segment = {
+  id: string;
+  start: number;
+  end: number;
+  speakerId: string | null;
+  text: string;
+  editedText: string | null;
+  overlap: boolean;
+};
+// PATCH requires the last saved transcript revision.
+</script></doc-schema>
+    </doc-claim>
+  </doc-claim>
+
+  <doc-claim>
+    <p>The user can export and delete saved recordings and transcripts.</p>
+    <doc-mock frame="none" w="440"><template><div class="ui"><div class="hd">Export transcript</div><div class="body"><span class="btn secondary">TXT</span><span class="btn secondary">SRT</span><span class="btn secondary">VTT</span><span class="btn secondary">JSON</span><p class="muted">Exports include the last saved text and speaker names.</p><hr><b class="bad">Delete this recording?</b><p>Remove its audio, transcript, and job history from this Mac.</p><span class="btn secondary">Keep recording</span><span class="btn">Delete</span></div></div></template></doc-mock>
+    <doc-claim>
+      <p>Local files stay until the user deletes their job.</p>
+      <doc-code title="Data ownership · sketch" lang="text"><script type="text/plain">
+~/Library/Application Support/LocalScribe/
+  localscribe.sqlite
+  jobs/{job_id}/source.{extension}
+  jobs/{job_id}/audio.wav
+  jobs/{job_id}/result.json
+  jobs/{job_id}/attempts/{attempt_id}/
+
+Shared model cache stays separate from job files.
+Delete removes the job files and its database records.
+</script></doc-code>
+      <doc-ask id="source-retention"><p>Do original files stay after audio conversion?</p>
+        <label><input type="radio" name="source_retention" value="keep" checked> Keep originals until job deletion <small>Allows future processing from the source.</small></label>
+        <label><input type="radio" name="source_retention" value="normalized-only"> Keep normalized audio only <small>Uses less disk space; video is removed.</small></label>
+      </doc-ask>
+      <doc-note tone="ok">Marcin accepted this default on 2026-10-16: keep originals until job deletion.</doc-note>
+    </doc-claim>
+    <doc-claim>
+      <p>Subtitle exports include timestamps and speaker names.</p>
+      <doc-mock frame="terminal" w="440" title="interview.srt"><template>1
+00:01:18,000 --&gt; 00:01:23,400
+Speaker 1: What would you change?
+
+2
+00:01:24,000 --&gt; 00:01:29,800
+Marcin: I would start with file import.</template></doc-mock>
+    </doc-claim>
+  </doc-claim>
+
+  <doc-claim>
+    <p>The application processes files offline after a one-time model setup.</p>
+    <doc-mock frame="none" w="440" caption="The setup needs account access before speaker models can download."><template><div class="ui"><div class="hd">Local engine readiness</div><div class="body"><p class="ok">✓ FFmpeg and local storage</p><p class="ok">✓ Whisper model · MLX GPU</p><p class="bad">○ Speaker model not installed</p><div class="warn">Accept the model access conditions on Hugging Face, then download the model with a local token.</div><p class="muted">A token is used for setup. Recordings stay local.</p><span class="btn secondary">Read setup guide</span></div></div></template></doc-mock>
+    <doc-claim>
+      <p>MLX runs ASR; pyannote separates the speakers locally.</p>
+      <doc-schema id="models" lang="json" title="Model candidates · sketch"><script type="text/plain">
+{
+  "asrFast": "mlx-community/whisper-large-v3-turbo",
+  "asrQuality": "mlx-community/whisper-large-v3-mlx",
+  "diarization": "pyannote/speaker-diarization-community-1",
+  "asrDevice": "mlx-gpu",
+  "diarizationDevice": "cpu"
+}
+</script></doc-schema>
+      <doc-note tone="info">The model spike must record exact revisions and license notices. LM Studio is not a runtime dependency.</doc-note>
+    </doc-claim>
+    <doc-claim>
+      <p>The model spike must pass before the engine choice is final.</p>
+      <doc-code title="Release evidence · sketch" lang="text"><script type="text/plain">
+English and Polish reference recordings
+Two speakers, mixed language, silence, and overlapping speech
+Fast profile compared with the quality profile
+ASR time, speaker time, memory, and total real-time factor
+Word errors and speaker errors measured separately
+Complete job with the network disabled
+Pinned assets, dependency locks, and telemetry disabled
+
+No models or benchmarks were run for this plan.
+</script></doc-code>
+    </doc-claim>
+  </doc-claim>
+
+  <doc-claim aux="shared">
+    <p>SQLite and local files preserve each job across application restarts.</p>
+    <doc-schema id="job-record" lang="sql" title="Job record · sketch"><script type="text/plain">
+CREATE TABLE jobs (
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  options_json TEXT NOT NULL,
+  attempt INTEGER NOT NULL DEFAULT 0,
+  source_path TEXT NOT NULL,
+  result_path TEXT,
+  edit_revision INTEGER NOT NULL DEFAULT 0,
+  warnings_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL
+);
+-- Full migrations add constraints, attempts, and edit storage.
+</script></doc-schema>
+    <doc-note tone="info">Queued jobs stay queued. Interrupted jobs show a retry action. Completed results remain available.</doc-note>
+  </doc-claim>
+  <doc-claim aux="scope">
+    <p>The first version serves one local user and existing files.</p>
+    <ul>
+      <li>No live capture, cloud inference, summaries, or speaker identity across files.</li>
+      <li>One active job runs at a time. The API binds to loopback.</li>
+      <li>Human account access and representative recordings remain setup prerequisites.</li>
+      <li><a href="../specs/mvp.md">The specification</a> defines acceptance rules and later work slices.</li>
+      <li><a href="../research/local-asr-models.md">The model research</a> gives primary sources and current limits.</li>
+    </ul>
+  </doc-claim>
+</doc-plan>
+</main>
+</body>
+</html>

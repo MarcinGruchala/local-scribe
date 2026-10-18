@@ -1,0 +1,7 @@
+; macOS validation policy: deny external networking for the entire app process tree.
+; Loopback remains available to the browser. This is a test policy, not an installer.
+(version 1)
+(allow default)
+(deny network*)
+(allow network-inbound (local ip "localhost:*"))
+(allow network-outbound (remote ip "localhost:*"))
