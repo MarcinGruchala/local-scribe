@@ -32,18 +32,15 @@ def ambiguous_segments(transcript):
     spans = []
     words = transcript.get("words", [])
     spans.extend((word["start"], word["end"]) for word in words if word.get("overlap"))
-    for collection in (
-        words,
-        transcript.get("regularTurns", []),
-        transcript.get("exclusiveTurns", []),
-    ):
-        ordered = sorted(collection, key=lambda item: item["start"])
+    # Source intervals are barriers even without word/turn overlap metadata.
+    for name in ("segments", "words", "regularTurns", "exclusiveTurns"):
+        ordered = sorted(transcript.get(name, []), key=lambda item: item["start"])
         for index, item in enumerate(ordered):
             for other_index in range(index + 1, len(ordered)):
                 other = ordered[other_index]
                 if other["start"] >= item["end"]:
                     break
-                if item.get("speakerId") != other.get("speakerId"):
+                if name == "segments" or item.get("speakerId") != other.get("speakerId"):
                     spans.append((other["start"], min(item["end"], other["end"])))
     return {
         segment["id"]

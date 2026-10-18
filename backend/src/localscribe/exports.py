@@ -35,8 +35,11 @@ def render(transcript: dict, format: str, *, layout: str = "grouped") -> tuple[s
     speakers = {speaker["id"]: speaker["displayName"] for speaker in saved["speakers"]}
     cues = []
     # Subtitles always use source cues. Only readable TXT uses saved blocks.
-    segments = grouping["blocks"] if format == "txt" and grouping is not None else saved["segments"]
-    for segment in sorted(segments, key=lambda item: (item["start"], item["end"])):
+    if format == "txt" and grouping is not None:
+        segments = grouping["blocks"]
+    else:
+        segments = sorted(saved["segments"], key=lambda item: (item["start"], item["end"]))
+    for segment in segments:
         text = (
             segment.get("editedText") if segment.get("editedText") is not None else segment["text"]
         )

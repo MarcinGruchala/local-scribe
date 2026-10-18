@@ -104,12 +104,18 @@ def test_grouping_respects_ambiguity_barriers_caps_and_source_order(jobs, tmp_pa
         segments = [dict(item) for item in base]
         segments[2].update(change)
         job_id = recording(jobs, tmp_path, segments, **extra)
+        original = jobs.transcript(job_id)
         preview = jobs.grouping_preview(job_id, 0)
-        assert [block["segmentIds"] for block in preview["blocks"]] == [
-            ["s0", "s1"],
-            ["s2"],
-            ["s3", "s4"],
-        ], (change, extra, preview)
+        expected = [["s0", "s1"], ["s2"], ["s3", "s4"]]
+        if change in ({"start": 1.5, "end": 3.5}, {"start": 0.5, "end": 1}):
+            expected = [["s0"], ["s1"], ["s2"], ["s3", "s4"]]
+        elif change == {"end": 65}:
+            expected = [["s0", "s1"], ["s2"], ["s3"], ["s4"]]
+        assert [block["segmentIds"] for block in preview["blocks"]] == expected, (
+            change,
+            extra,
+            preview,
+        )
         assert [sid for block in preview["blocks"] for sid in block["segmentIds"]] == [
             "s0",
             "s1",
@@ -117,7 +123,54 @@ def test_grouping_respects_ambiguity_barriers_caps_and_source_order(jobs, tmp_pa
             "s3",
             "s4",
         ]
-        assert jobs.grouping_apply(job_id, 0)["segments"] == jobs.transcript(job_id)["segments"]
+        saved = jobs.grouping_apply(job_id, 0)
+        assert saved["segments"] == original["segments"]
+        by_id = {segment["id"]: segment for segment in original["segments"]}
+        assert [block["text"] for block in saved["grouping"]["blocks"]] == [
+            " ".join(by_id[sid]["text"].strip() for sid in group) for group in expected
+        ]
+
+
+@pytest.mark.parametrize("selected", [False, True])
+@pytest.mark.parametrize(
+    "intervals,inner_ids",
+    [
+        ([(0, 10), (5, 6), (6, 7)], ["B", "C"]),
+        ([(5, 6), (6, 7), (0, 10)], ["A", "B"]),
+        ([(0, 6.5), (5, 6), (6, 7)], ["B", "C"]),
+    ],
+    ids=["enclosing-earlier", "enclosing-later", "partial-nonadjacent"],
+)
+def test_grouping_source_overlap_is_global_even_for_same_speaker(
+    jobs, tmp_path, intervals, inner_ids, selected
+):
+    selection = inner_ids if selected else None
+    segments = [
+        {
+            "id": sid,
+            "start": start,
+            "end": end,
+            "speakerId": "speaker1",
+            "text": f"  original {sid}\n世界  ",
+        }
+        for sid, (start, end) in zip(["A", "B", "C"], intervals, strict=True)
+    ]
+    job_id = recording(jobs, tmp_path, segments, words=[], regularTurns=[], exclusiveTurns=[])
+    original = jobs.transcript(job_id)
+    immutable = next(jobs.directory(job_id).glob("attempts/*/published.json"))
+    source_bytes = immutable.read_bytes()
+    preview = jobs.grouping_preview(job_id, 0, selection)
+    saved = jobs.grouping_apply(job_id, 0, selection)
+    assert [block["segmentIds"] for block in preview["blocks"]] == [["A"], ["B"], ["C"]]
+    assert saved == original
+    assert saved["grouping"]["blocks"] == preview["blocks"]
+    assert [sid for block in preview["blocks"] for sid in block["segmentIds"]] == ["A", "B", "C"]
+    assert [block["text"] for block in preview["blocks"]] == [
+        segment["text"].strip() for segment in segments
+    ]
+    assert saved["segments"] == original["segments"]
+    assert immutable.read_bytes() == source_bytes
+    assert jobs.history(job_id)["operations"] == []
 
 
 def test_selection_preserves_outside_blocks_and_manual_split_survives_regroup(jobs, tmp_path):

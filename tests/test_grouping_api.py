@@ -2,6 +2,8 @@
 
 # Pytest discovers the imported shared client fixture; parameters intentionally shadow it.
 # ruff: noqa: F811
+import pytest
+from localscribe.exports import render
 from test_api import client  # noqa: F401
 from test_transcript_history import recording
 
@@ -48,6 +50,47 @@ def test_http_grouping_history_workflow(client, tmp_path):
     )
     assert denied.status_code == 403
     assert client.get(path + "/transcript").json()["revision"] == 4
+
+
+@pytest.mark.parametrize("output", ["rendered", "download", "automatic"])
+def test_grouped_txt_preserves_saved_source_order_with_backwards_times(client, tmp_path, output):
+    jobs = client.app.state.jobs
+    job_id = recording(
+        jobs,
+        tmp_path,
+        segments=[
+            {"id": sid, "start": start, "end": end, "speakerId": "speaker1", "text": sid}
+            for sid, start, end in [("A", 10, 11), ("B", 0, 1), ("C", 1, 2)]
+        ],
+    )
+    path = f"/api/jobs/{job_id}/export"
+    subtitles = {}
+    for format in ("srt", "vtt"):
+        response = client.get(path, params={"format": format})
+        assert response.status_code == 200
+        subtitles[format] = response.text
+        assert response.text.index("Speaker 1: B") < response.text.index("Speaker 1: C")
+        assert response.text.index("Speaker 1: C") < response.text.index("Speaker 1: A")
+    saved = jobs.grouping_apply(job_id, 0)
+    assert [block["segmentIds"] for block in saved["grouping"]["blocks"]] == [["A"], ["B", "C"]]
+    assert render(saved, "txt", layout="segmented")[0] == (
+        "Speaker 1: B\n\nSpeaker 1: C\n\nSpeaker 1: A\n"
+    )
+    for format, expected in subtitles.items():
+        for layout in ("grouped", "segmented"):
+            response = client.get(path, params={"format": format, "layout": layout})
+            assert response.status_code == 200 and response.text == expected
+        assert (jobs.directory(job_id) / f"transcript.{format}").read_text() == expected
+    if output == "rendered":
+        actual = render(saved, "txt")[0]
+    elif output == "download":
+        response = client.get(path, params={"format": "txt"})
+        assert response.status_code == 200
+        assert "attachment" in response.headers["content-disposition"]
+        actual = response.text
+    else:
+        actual = (jobs.directory(job_id) / "transcript.txt").read_text()
+    assert actual == "Speaker 1: A\n\nSpeaker 1: B C\n"
 
 
 def test_saved_grouped_exports_and_original_source_cues(client, tmp_path):
