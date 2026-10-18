@@ -8,7 +8,7 @@ import time
 import uuid
 from pathlib import Path
 
-from . import local_files
+from . import grouping, local_files
 from .contracts import Options, Transcript
 
 ACTIVE = {"preparing", "transcribing", "diarizing", "assembling", "cancelling"}
@@ -65,6 +65,40 @@ class Jobs:
             if "local_files" not in columns:
                 db.execute("ALTER TABLE jobs ADD COLUMN local_files TEXT NOT NULL DEFAULT '{}'")
             db.execute("INSERT OR IGNORE INTO schema_migrations(version) VALUES (4)")
+
+        self._initialize_history()
+
+    def _initialize_history(self):
+        # DDL and checkpoint backfill are one transaction. Never infer lost edits.
+        with self.storage.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            db.execute("""CREATE TABLE IF NOT EXISTS transcript_history_state (
+                job_id TEXT PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE,
+                checkpoint TEXT NOT NULL, current TEXT NOT NULL, cursor INTEGER NOT NULL
+            )""")
+            db.execute("""CREATE TABLE IF NOT EXISTS transcript_operations (
+                job_id TEXT NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL, id TEXT NOT NULL, type TEXT NOT NULL,
+                created REAL NOT NULL, base_revision INTEGER NOT NULL,
+                result_revision INTEGER NOT NULL, before_value TEXT NOT NULL,
+                after_value TEXT NOT NULL, provenance TEXT NOT NULL,
+                PRIMARY KEY(job_id, position)
+            )""")
+            for row in db.execute("SELECT id,edits FROM jobs").fetchall():
+                # Validate before marking the migration complete; corrupt input rolls back.
+                edits = json.loads(row["edits"])
+                if (
+                    not isinstance(edits, dict)
+                    or not isinstance(edits.get("segments"), dict)
+                    or not isinstance(edits.get("speakers"), dict)
+                ):
+                    # A malformed persisted JSON value is a schema/value error.
+                    raise ValueError("Invalid saved transcript edits.")  # noqa: TRY004
+                db.execute(
+                    "INSERT OR IGNORE INTO transcript_history_state VALUES (?,?,?,0)",
+                    (row["id"], row["edits"], row["edits"]),
+                )
+            db.execute("INSERT OR IGNORE INTO schema_migrations(version) VALUES (5)")
 
     def directory(self, job_id):
         if not isinstance(job_id, str) or len(job_id) != 32:
@@ -364,6 +398,13 @@ class Jobs:
                     job_id,
                 ),
             )
+            # A fresh immutable source starts a fresh history, including after recovery/retry.
+            db.execute("DELETE FROM transcript_operations WHERE job_id=?", (job_id,))
+            db.execute("DELETE FROM transcript_history_state WHERE job_id=?", (job_id,))
+            reset = '{"segments":{},"speakers":{}}'
+            db.execute(
+                "INSERT INTO transcript_history_state VALUES (?,?,?,0)", (job_id, reset, reset)
+            )
             db.execute(
                 "UPDATE attempts SET status='completed',finished=? WHERE job_id=? AND number=?",
                 (now, job_id, attempt),
@@ -375,12 +416,14 @@ class Jobs:
         self._sync_local_files_after_commit(job_id)
         return True
 
-    def transcript(self, job_id):
+    def transcript(self, job_id, source="current"):
+        if source not in {"current", "original"}:
+            raise JobError(422, "invalid_source", "Choose current or original transcript.")
         with self.storage.connect() as db:
             row = self._row(db, job_id)
-            return self._transcript(row)
+            return self._transcript(row, original=source == "original")
 
-    def _transcript(self, row):
+    def _transcript(self, row, original=False):
         if not row["result"] or row["status"] in {"deleting", "deletion_failed"}:
             raise JobError(409, "transcript_unavailable", "No published transcript is available.")
         try:
@@ -391,12 +434,19 @@ class Jobs:
             raise JobError(
                 409, "transcript_unavailable", "The stored transcript is unavailable."
             ) from exc
+        if original:
+            return transcript
         edits = json.loads(row["edits"])
         for segment in transcript["segments"]:
             segment["editedText"] = edits["segments"].get(segment["id"])
         for speaker in transcript["speakers"]:
             speaker["displayName"] = edits["speakers"].get(speaker["id"], speaker["displayName"])
         transcript["revision"] = row["revision"]
+        groups = edits.get("groups") or [[segment["id"]] for segment in transcript["segments"]]
+        transcript["grouping"] = {
+            "blocks": grouping.blocks(transcript["segments"], groups),
+            "manualSplits": edits.get("manualSplits", []),
+        }
         return transcript
 
     def patch(self, job_id, expected_revision, segment_texts=None, speaker_names=None):
@@ -431,15 +481,177 @@ class Jobs:
             edits = json.loads(row["edits"])
             edits["segments"].update(segment_texts)
             edits["speakers"].update(speaker_names)
-            files_state = json.loads(row["local_files"])
-            files_state["status"] = "pending"
-            db.execute(
-                "UPDATE jobs SET edits=?,revision=revision+1,local_files=? WHERE id=?",
-                (json.dumps(edits), json.dumps(files_state), job_id),
-            )
+            self._record_operation(db, row, edits, "manual_save", {})
             saved = self._transcript(self._row(db, job_id))
         self._sync_local_files_after_commit(job_id)
         return saved
+
+    def _grouping_preview(self, transcript, segment_ids=None):
+        try:
+            groups = grouping.propose(transcript, segment_ids)
+        except ValueError as exc:
+            raise JobError(422, "invalid_selection", str(exc)) from exc
+        return {
+            "revision": transcript["revision"],
+            "beforeCount": len(transcript["grouping"]["blocks"]),
+            "afterCount": len(groups),
+            "changed": groups != grouping.partitions(transcript),
+            "blocks": grouping.blocks(transcript["segments"], groups),
+        }
+
+    def grouping_preview(self, job_id, expected_revision, segment_ids=None):
+        with self.storage.connect() as db:
+            row = self._guard_mutation(db, job_id, expected_revision)
+            return self._grouping_preview(self._transcript(row), segment_ids)
+
+    def grouping_apply(self, job_id, expected_revision, segment_ids=None):
+        with self.storage.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._guard_mutation(db, job_id, expected_revision)
+            transcript = self._transcript(row)
+            preview = self._grouping_preview(transcript, segment_ids)
+            if not preview["changed"]:
+                return transcript
+            edits = json.loads(row["edits"])
+            edits["groups"] = [block["segmentIds"] for block in preview["blocks"]]
+            self._record_operation(db, row, edits, "grouping", {"algorithm": "adjacent-v1"})
+            saved = self._transcript(self._row(db, job_id))
+        self._sync_local_files_after_commit(job_id)
+        return saved
+
+    def grouping_split(self, job_id, expected_revision, before_segment_id):
+        with self.storage.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._guard_mutation(db, job_id, expected_revision)
+            transcript = self._transcript(row)
+            groups = grouping.partitions(transcript)
+            for index, group in enumerate(groups):
+                if before_segment_id in group[1:]:
+                    boundary = group.index(before_segment_id)
+                    groups[index : index + 1] = [group[:boundary], group[boundary:]]
+                    break
+            else:
+                raise JobError(422, "invalid_split", "Split inside an existing saved block.")
+            edits = json.loads(row["edits"])
+            edits["groups"] = groups
+            splits = set(edits.get("manualSplits", [])) | {before_segment_id}
+            edits["manualSplits"] = [s["id"] for s in transcript["segments"] if s["id"] in splits]
+            self._record_operation(db, row, edits, "split", {"beforeSegmentId": before_segment_id})
+            saved = self._transcript(self._row(db, job_id))
+        self._sync_local_files_after_commit(job_id)
+        return saved
+
+    def _history_state(self, db, row):
+        db.execute(
+            "INSERT OR IGNORE INTO transcript_history_state VALUES (?,?,?,0)",
+            (row["id"], row["edits"], row["edits"]),
+        )
+        state = db.execute(
+            "SELECT * FROM transcript_history_state WHERE job_id=?", (row["id"],)
+        ).fetchone()
+        if json.loads(state["current"]) != json.loads(row["edits"]):
+            raise JobError(409, "history_conflict", "Saved values do not match transcript history.")
+        return state
+
+    def _save_state(self, db, row, edits, cursor):
+        value = json.dumps(edits, ensure_ascii=False)
+        files = {**json.loads(row["local_files"]), "status": "pending"}
+        db.execute(
+            "UPDATE jobs SET edits=?,revision=revision+1,local_files=? WHERE id=?",
+            (value, json.dumps(files), row["id"]),
+        )
+        db.execute(
+            "UPDATE transcript_history_state SET current=?,cursor=? WHERE job_id=?",
+            (value, cursor, row["id"]),
+        )
+
+    def _record_operation(self, db, row, edits, operation_type, provenance):
+        state = self._history_state(db, row)
+        position = state["cursor"] + 1
+        db.execute(
+            "DELETE FROM transcript_operations WHERE job_id=? AND position>=?",
+            (row["id"], position),
+        )
+        db.execute(
+            "INSERT INTO transcript_operations VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (
+                row["id"],
+                position,
+                uuid.uuid4().hex,
+                operation_type,
+                time.time(),
+                row["revision"],
+                row["revision"] + 1,
+                row["edits"],
+                json.dumps(edits, ensure_ascii=False),
+                json.dumps({**provenance, "attempt": row["attempt"]}),
+            ),
+        )
+        self._save_state(db, row, edits, position)
+
+    def history(self, job_id):
+        with self.storage.connect() as db:
+            row = self._row(db, job_id)
+            state = self._history_state(db, row)
+            operations = db.execute(
+                "SELECT * FROM transcript_operations WHERE job_id=? ORDER BY position", (job_id,)
+            ).fetchall()
+            return {
+                "revision": row["revision"],
+                "canUndo": state["cursor"] > 0,
+                "canRedo": state["cursor"] < len(operations),
+                "operations": [
+                    {
+                        "id": op["id"],
+                        "type": op["type"],
+                        "createdAt": op["created"],
+                        "baseRevision": op["base_revision"],
+                        "resultRevision": op["result_revision"],
+                        "applied": op["position"] <= state["cursor"],
+                    }
+                    for op in operations
+                ],
+            }
+
+    def _guard_mutation(self, db, job_id, expected_revision):
+        row = self._row(db, job_id)
+        if row["status"] != "completed":
+            raise JobError(409, "invalid_state", "Only completed transcripts can be edited.")
+        if row["revision"] != expected_revision:
+            raise JobError(
+                409, "stale_revision", "The transcript changed. Reload before saving again."
+            )
+        self._history_state(db, row)
+        return row
+
+    def _move_history(self, job_id, expected_revision, redo):
+        with self.storage.connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = self._guard_mutation(db, job_id, expected_revision)
+            state = self._history_state(db, row)
+            position = state["cursor"] + int(redo)
+            operation = db.execute(
+                "SELECT * FROM transcript_operations WHERE job_id=? AND position=?",
+                (job_id, position),
+            ).fetchone()
+            if operation is None:
+                raise JobError(409, "history_unavailable", "There is no operation to undo or redo.")
+            before, after = (
+                ("before_value", "after_value") if redo else ("after_value", "before_value")
+            )
+            if json.loads(row["edits"]) != json.loads(operation[before]):
+                raise JobError(409, "history_conflict", "Saved values do not match this operation.")
+            cursor = state["cursor"] + (1 if redo else -1)
+            self._save_state(db, row, json.loads(operation[after]), cursor)
+            saved = self._transcript(self._row(db, job_id))
+        self._sync_local_files_after_commit(job_id)
+        return saved
+
+    def undo(self, job_id, expected_revision):
+        return self._move_history(job_id, expected_revision, False)
+
+    def redo(self, job_id, expected_revision):
+        return self._move_history(job_id, expected_revision, True)
 
     def media_path(self, job_id):
         self.get(job_id)

@@ -13,7 +13,11 @@ export type Job = {
 };
 export type Segment = { id: string; start: number; end: number; speakerId: string | null; text: string; editedText: string | null; overlap: boolean };
 export type Speaker = { id: string; displayName: string };
-export type Transcript = { schemaVersion: 1; jobId: string; revision: number; language: string | null; duration?: number; segments: Segment[]; speakers: Speaker[]; warnings: Warning[]; provenance: Record<string, unknown> };
+export type TranscriptBlock = { id: string; segmentIds: string[]; start: number; end: number; speakerId: string | null; text: string };
+export type Grouping = { blocks: TranscriptBlock[]; manualSplits: string[] };
+export type GroupingPreview = { revision: number; beforeCount: number; afterCount: number; changed: boolean; blocks: TranscriptBlock[] };
+export type Transcript = { schemaVersion: 1; jobId: string; revision: number; language: string | null; duration?: number; segments: Segment[]; speakers: Speaker[]; warnings: Warning[]; provenance: Record<string, unknown>; grouping?: Grouping };
+export type OperationHistory = { revision: number; canUndo: boolean; canRedo: boolean; operations: { id: string; type: string; createdAt: number; baseRevision: number; resultRevision: number; applied: boolean }[] };
 export type ModelReadiness = { ready: boolean; message?: string; missing?: string[] };
 export type Health = {
   status: string; ready: boolean;
@@ -89,9 +93,14 @@ export const api = {
   action: (id: string, action: 'cancel' | 'retry') => request<Job>(`${idPath(id)}/${action}`, { method: 'POST' }),
   syncLocalFiles: (id: string) => request<Job>(`${idPath(id)}/local-files`, { method: 'POST' }),
   save: (id: string, revision: number, texts: Record<string, string | null>, names: Record<string, string>) => request<Transcript>(`${idPath(id)}/transcript`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, texts, names }) }),
+  previewGrouping: (id: string, expectedRevision: number, segmentIds?: string[]) => request<GroupingPreview>(`${idPath(id)}/grouping/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision, segmentIds }) }),
+  applyGrouping: (id: string, expectedRevision: number, segmentIds?: string[]) => request<Transcript>(`${idPath(id)}/grouping/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision, segmentIds }) }),
+  splitGrouping: (id: string, expectedRevision: number, beforeSegmentId: string) => request<Transcript>(`${idPath(id)}/grouping/split`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision, beforeSegmentId }) }),
+  history: (id: string) => request<OperationHistory>(`${idPath(id)}/history`),
+  moveHistory: (id: string, action: 'undo' | 'redo', expectedRevision: number) => request<Transcript>(`${idPath(id)}/history/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision }) }),
   delete: (id: string) => request<void>(idPath(id), { method: 'DELETE' }),
   media: (id: string) => `${idPath(id)}/media`,
-  export: (id: string, format: string) => `${idPath(id)}/export?format=${encodeURIComponent(format)}`,
+  export: (id: string, format: string, source = 'current', layout = 'grouped') => `${idPath(id)}/export?format=${encodeURIComponent(format)}&source=${encodeURIComponent(source)}&layout=${encodeURIComponent(layout)}`,
 };
 export const activeStatuses = new Set(['queued', 'preparing', 'transcribing', 'diarizing', 'assembling', 'cancelling']);
 export const completedStatuses = new Set(['completed', 'completed_with_warnings']);

@@ -8,7 +8,7 @@ from typing import Annotated
 from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from starlette.exceptions import HTTPException
 from starlette.staticfiles import StaticFiles
 
@@ -27,6 +27,26 @@ class TranscriptEdit(BaseModel):
     revision: int = Field(ge=0, strict=True)
     texts: dict[str, str | None] = Field(default_factory=dict)
     names: dict[str, str] = Field(default_factory=dict)
+
+
+class RevisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expectedRevision: int = Field(ge=0, strict=True)
+
+
+class GroupingRequest(RevisionRequest):
+    segmentIds: list[str] | None = Field(default=None, min_length=1)
+
+    @field_validator("segmentIds", mode="before")
+    @classmethod
+    def validate_selection(cls, value):
+        if not isinstance(value, list) or any(not isinstance(sid, str) or not sid for sid in value):
+            raise ValueError("Use a nonempty list of source segment IDs.")
+        return value
+
+
+class SplitRequest(RevisionRequest):
+    beforeSegmentId: str = Field(min_length=1, strict=True)
 
 
 def create_app(settings: Settings | None = None, storage: Storage | None = None) -> FastAPI:
@@ -184,15 +204,46 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
     def edit_transcript(job_id: str, edit: TranscriptEdit):
         return jobs.patch(job_id, edit.revision, edit.texts, edit.names)
 
+    @app.get("/api/jobs/{job_id}/history")
+    def history(job_id: str):
+        return jobs.history(job_id)
+
+    @app.post("/api/jobs/{job_id}/history/undo")
+    def undo(job_id: str, body: RevisionRequest):
+        return jobs.undo(job_id, body.expectedRevision)
+
+    @app.post("/api/jobs/{job_id}/history/redo")
+    def redo(job_id: str, body: RevisionRequest):
+        return jobs.redo(job_id, body.expectedRevision)
+
+    @app.post("/api/jobs/{job_id}/grouping/preview")
+    def grouping_preview(job_id: str, body: GroupingRequest):
+        return jobs.grouping_preview(job_id, body.expectedRevision, body.segmentIds)
+
+    @app.post("/api/jobs/{job_id}/grouping/apply")
+    def grouping_apply(job_id: str, body: GroupingRequest):
+        return jobs.grouping_apply(job_id, body.expectedRevision, body.segmentIds)
+
+    @app.post("/api/jobs/{job_id}/grouping/split")
+    def grouping_split(job_id: str, body: SplitRequest):
+        return jobs.grouping_split(job_id, body.expectedRevision, body.beforeSegmentId)
+
     @app.post("/api/jobs/{job_id}/local-files")
     def sync_local_files(job_id: str):
         return jobs.sync_local_files(job_id)
 
     @app.get("/api/jobs/{job_id}/export")
-    def export(job_id: str, format: str = Query(...)):
+    def export(
+        job_id: str,
+        format: str = Query(...),
+        source: str = Query("current"),
+        layout: str = Query("grouped"),
+    ):
         if format not in {"txt", "srt", "vtt", "json"}:
             raise JobError(422, "unsupported_export", "Choose TXT, SRT, VTT, or JSON.")
-        content, media_type = render(jobs.transcript(job_id), format)
+        if layout not in {"grouped", "segmented"}:
+            raise JobError(422, "invalid_layout", "Choose grouped or segmented layout.")
+        content, media_type = render(jobs.transcript(job_id, source), format, layout=layout)
         from fastapi.responses import Response
 
         return Response(

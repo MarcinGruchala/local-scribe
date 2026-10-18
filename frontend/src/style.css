@@ -421,6 +421,28 @@ footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12
 .modal p { margin: 0; color: var(--text-2); font-size: 13.5px; }
 .modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 20px; }
 
+/* ---------- Transcript grouping and durable operations ---------- */
+.cleanup-tools, .operation-history { display: grid; gap: 12px; min-width: 0; }
+.cleanup-tools label, .inspector-content > label { display: grid; gap: 6px; margin-bottom: 10px; color: var(--text-2); font-size: 12px; }
+.cleanup-tools select, .inspector-content > label select { width: 100%; min-width: 0; }
+.cleanup-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.grouping-preview { padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px; }
+.preview-blocks, .history-operations { max-height: 280px; overflow: auto; padding-left: 20px; margin: 10px 0; overflow-wrap: anywhere; }
+.preview-blocks li, .history-operations li { margin-bottom: 12px; }
+.preview-blocks li > span, .history-operations li > span { display: block; color: var(--text-3); font-size: 11px; }
+.preview-blocks p { margin-top: 4px; }
+.operation-history { padding-top: 12px; border-top: 1px solid var(--border); }
+.operation-history h4 { margin: 0; }
+.history-operations .undone { opacity: .55; }
+.transcript-block { margin: 12px 0 20px; border: 1px solid var(--border); border-left: 3px solid var(--speaker-color); border-radius: 10px; overflow: hidden; }
+.transcript-block.playing { background: color-mix(in srgb, var(--speaker-color) 5%, transparent); }
+.transcript-block > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px 0; color: var(--speaker-color); font-size: 13px; }
+.block-text { margin: 10px 14px 14px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.block-sources > summary { padding: 8px 14px; color: var(--text-3); font-size: 12px; cursor: pointer; border-top: 1px solid var(--border); }
+.block-sources .segment { padding-left: 12px; }
+.split-boundary { margin: 8px 14px 0; font-size: 12px; }
+.studio-actions { flex-wrap: wrap; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1180px) {
   .app-shell { grid-template-columns: 224px minmax(0, 1fr); }

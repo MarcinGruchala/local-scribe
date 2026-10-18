@@ -175,7 +175,10 @@ Path.mkdir = kill_before_mkdir
 original = shutil.copytree
 def kill_after_copy(*args, **kwargs):
     copied = original(*args, **kwargs)
-    os.kill(os.getpid(), signal.SIGKILL)
+    # copytree recurses through this hook; interrupt only after the full jobs tree,
+    # not an arbitrary nested directory chosen by filesystem enumeration order.
+    if Path(args[0]) == Path(sys.argv[3]) / "jobs":
+        os.kill(os.getpid(), signal.SIGKILL)
     return copied
 shutil.copytree = kill_after_copy
 migrate_legacy_store(Path(sys.argv[1]), Path(sys.argv[2]), legacy=Path(sys.argv[3]))

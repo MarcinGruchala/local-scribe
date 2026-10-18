@@ -18,17 +18,31 @@ def _timestamp(milliseconds: int, separator: str) -> str:
     return f"{hours:02}:{minutes:02}:{seconds:02}{separator}{millis:03}"
 
 
-def render(transcript: dict, format: str) -> tuple[str, str]:
+def render(transcript: dict, format: str, *, layout: str = "grouped") -> tuple[str, str]:
     if format not in {"txt", "srt", "vtt", "json"}:
         raise ValueError("Unsupported export format.")
-    saved = Transcript.model_validate(transcript).model_dump()
+    if layout not in {"grouped", "segmented"}:
+        raise ValueError("Unsupported export layout.")
+    saved = Transcript.model_validate(
+        {k: v for k, v in transcript.items() if k != "grouping"}
+    ).model_dump()
+    grouping = transcript.get("grouping") if layout == "grouped" else None
     if format == "json":
+        if grouping is not None:
+            saved["schemaVersion"] = 2
+            saved["grouping"] = grouping
         return json.dumps(saved, ensure_ascii=False, indent=2) + "\n", "application/json"
     speakers = {speaker["id"]: speaker["displayName"] for speaker in saved["speakers"]}
     cues = []
-    # One cue per display segment, ordered by time and stable original position.
-    for segment in sorted(saved["segments"], key=lambda item: (item["start"], item["end"])):
-        text = segment["editedText"] if segment["editedText"] is not None else segment["text"]
+    # Subtitles always use source cues. Only readable TXT uses saved blocks.
+    if format == "txt" and grouping is not None:
+        segments = grouping["blocks"]
+    else:
+        segments = sorted(saved["segments"], key=lambda item: (item["start"], item["end"]))
+    for segment in segments:
+        text = (
+            segment.get("editedText") if segment.get("editedText") is not None else segment["text"]
+        )
         name = speakers.get(segment["speakerId"], "Unknown speaker")
         body = f"{name}: {text}".replace("\r\n", "\n").replace("\r", "\n")
         cues.append((segment, body))

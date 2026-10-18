@@ -56,6 +56,22 @@ Original files stay until you confirm deletion in the UI. Cancel queued/active w
 
 Whisper may hallucinate or misrecognize names, silence, music, language switches, and overlapping speech. Review important transcripts. Reference quality measurements have not yet established the accepted thresholds.
 
+## Transcript grouping and saved-operation history
+
+Open **Transcript tools** in the recording details panel. **Entire recording** is the default: **Preview grouping** scans the whole transcript, then **Apply all** saves every eligible block in one operation. There are no per-block confirmations. **Cancel grouping** changes nothing. **Selection** uses an explicit first/last source-segment range. Save or **Discard changes** before grouping or using history; discard asks for confirmation and reloads the latest saved revision.
+
+Grouping uses no AI and never reruns recognition. It joins only adjacent segments belonging to the same known speaker ID, with a maximum 2-second gap, a 60-second block and a soft 1,200-character cap. Speaker changes (including short interjections), unknown attribution, overlapping/ambiguous speech and overlapping/backwards source times are barriers. These are initial product settings, not measured ASR-quality thresholds. Original words, segment IDs and timing remain intact; only joining whitespace is normalized.
+
+Grouped paragraphs retain expandable **Source segments** for listening, editing and **Split before** at an original boundary. Explicit splits survive repeat grouping. Search and audio-follow reveal the matching source segment; silence inside a block is not highlighted as speech. A repeat pass that changes nothing adds neither a revision nor a history entry.
+
+**Changes & history** lists saved operations. Each manual save, grouping batch and source-boundary split is one **Undo** unit. Undo/Redo survive application restart and create new, increasing saved revisions; they never rerun inference. A new saved operation after Undo clears the redo branch. Textarea-native keyboard undo is unchanged. A stale browser tab receives a conflict and keeps its visible draft; save it elsewhere before discarding/reloading if needed.
+
+Exports distinguish **Current saved** from **Original ASR**, and **Grouped** from **Source segments**. TXT can render readable speaker blocks; SRT/VTT always keep source cue boundaries/times. Current grouped JSON uses schema version 2 with grouping metadata; source-segment or original JSON remains v1-compatible. Pending previews and visible drafts are never exported as saved text. Automatic copies reflect the saved revision and grouping; copy failures remain separately retryable and do not roll back the saved transcript.
+
+Upgrade with the app stopped and a backup of the complete data directory. The SQLite history migration captures existing saved edits as its initial checkpoint; edits overwritten before this upgrade cannot be reconstructed. It does not rewrite published inference results or media. Deleting a recording also deletes its operation history, not shared models. This feature does not add LM Studio/proofreading or change the accepted MVP recognition limitations.
+
+See the [implementation contract](docs/specs/transcript-grouping.md) and [development guide](docs/development.md) for model-free/browser checks.
+
 ## Checks and evidence
 
 ```sh
