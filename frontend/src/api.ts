@@ -13,6 +13,7 @@ export type Job = {
 };
 export type Segment = { id: string; start: number; end: number; speakerId: string | null; text: string; editedText: string | null; overlap: boolean };
 export type Speaker = { id: string; displayName: string };
+export type RecordingView = 'transcript' | 'review';
 export type Transcript = { schemaVersion: 1; jobId: string; revision: number; language: string | null; duration?: number; segments: Segment[]; speakers: Speaker[]; warnings: Warning[]; provenance: Record<string, unknown> };
 export type ModelReadiness = { ready: boolean; message?: string; missing?: string[] };
 export type Health = {

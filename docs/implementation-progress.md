@@ -1,8 +1,10 @@
 # Implementation progress
 
-Updated: 2026-10-17. Branch: `codex/mvp-implementation`. **Goal is not complete.**
+Updated: 2026-10-18. Branch: `codex/mvp-implementation`. **Goal is not complete.**
 
 ## Current checkpoint
+
+- The previously uncommitted history/review frontend work is now included in the repository: searchable paginated transcript history, direct listening/editing view, playback controls and draft-preserving navigation. Verification on 2026-10-18: 213 backend tests, Ruff, TypeScript/build and both new Chromium scripts pass (six review checks and five history checks). Private output remains ignored.
 
 - The user resumed work and requested discoverable project-local history. Commit `39a7cc4` is pushed: ignored `output/` default, source-preserving/resumable legacy-store migration, automatic TXT/SRT/VTT/JSON after completion and saved edits, copyable folder paths, separate copy failures and repair. Decoder findings are documented in pushed `da6f1ef` and the latest validation update.
 - Normal app is running at `http://127.0.0.1:8768` under OS external-network denial with empty `HF_HOME`. Fixture server 8766 is stopped. All model diagnostics are finished; the heavy slot is free. Do not start competing inference if a user job is active/queued.
