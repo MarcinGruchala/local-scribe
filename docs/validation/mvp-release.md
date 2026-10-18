@@ -1,6 +1,22 @@
 # LocalScribe MVP release evidence
 
-Date: 2026-10-17. **Release decision: NOT READY.** The application is runnable and its functional workflows are implemented. Real English and Polish ASR plus CPU Community-1 work offline, including playback, saved text/speaker edits, all exports and deletion. Representative conversation quality and sustained performance evidence remain missing. This report does not certify the complete MVP.
+Date: 2026-10-18. **Release decision: MVP ACCEPTED FOR PERSONAL USE BY THE OWNER.**
+
+## Owner acceptance and closeout
+
+On 2026-10-18, Marcin reported that he had practically tested and improved the MVP, accepted the iteration as complete, and explicitly requested closure of the related tickets and merge into `main`. This is the new scope/acceptance decision required by the original plan. It supersedes the earlier NOT READY delivery decision for this personal-use MVP.
+
+Functional FR-01–FR-13, real EN/PL ASR plus CPU Community-1, cached network-disabled workflows, long-recording operation, editing/history, exports and lifecycle handling retain their recorded evidence. The dark recording studio and the owner's practical improvements are included in the accepted source.
+
+Accepted exceptions are explicit: the measured Polish WER remains above 15%; representative English comparison and the independent 90% attribution measurement remain unfinished; the exact selected-profile 30-minute benchmark is deferred despite the recorded 62-minute stability result. Instrumental-music and constructed language-switch failures remain disclosed. The owner accepts the current Fast profile for practical personal use. No target value, model output or historical result is changed to a numerical pass, and no further model/corpus search is required to close this MVP. These are known limitations for future work, not unresolved work in the accepted iteration.
+
+LS-012 is resolved by this recorded owner decision; LS-001–LS-011 already have completion evidence. The merge pull request links the closure. Historical validation statuses below describe the original quantitative targets and remain evidence rather than a claim of full accuracy certification.
+
+Closeout verification on 2026-10-18: `make check` passes all 213 model-free tests, Ruff and frontend TypeScript; `make build` passes. Actual Chromium on the accepted studio opens the restored 724-segment long recording, seeks/plays beyond one hour, checks editable drafts and reloads unchanged saved text, with zero page errors or external requests. Earlier model inference evidence retains its original dates.
+
+## Historical validation checkpoint (2026-10-17)
+
+The prior delivery decision was NOT READY because representative conversation quality and some formal performance/reference evidence were missing. The application was runnable and real English/Polish ASR plus CPU Community-1 already worked offline, including playback, saved text/speaker edits, exports and deletion. The owner's later acceptance above closes the MVP with these limitations explicitly accepted.
 
 ## Environment and reproducibility
 
@@ -70,9 +86,9 @@ HF_HOME=/private/tmp/localscribe-no-hf-home /usr/bin/sandbox-exec -f scripts/off
 
 Full real browser runs now pass nine checks each for EN and PL, with no mocks: default speaker-enabled import; source-language MLX GPU transcription; CPU Community-1 regular/exclusive turns; stable IDs; playback/seek; saved text/name edits and reload; four independent downloads; confirmed deletion. EN child total is 6.201 s (ASR 1.445 s, diarization 3.107 s), PL 6.768 s (ASR 1.215 s, diarization 3.906 s). Browser submit-to-result is 8.524 s and 8.523 s. Each had zero external-origin requests and zero uncaught page errors. These short functional passes do not establish long-form quality or performance.
 
-## Required release gates and blockers
+## Original validation gates and recorded limitations
 
-| Gate | Status | Required action |
+| Original validation target | Recorded result | Accepted limitation or future work |
 | --- | --- | --- |
 | Native MLX EN/PL compatibility | PASS | Short real samples and offline application flow recorded. |
 | Native Community-1 CPU, regular/exclusive turns | PASS | User-owned access resolved; pinned complete snapshot and real offline EN/PL/recurring-voice inference verified. |
@@ -90,7 +106,7 @@ No failed or pending gate is labelled passed. Private recordings, corrected refe
 
 ## Ticket disposition
 
-LS-002, LS-003, LS-004, LS-005, LS-007, LS-008, LS-009, LS-010 have implementation and acceptance evidence. LS-001, LS-006 and LS-011 are also complete with native full offline, recurring-voice, actual diarization-cancellation and clean-setup evidence. LS-012 remains incomplete pending the representative quality/performance/stability gates above. GitHub checkboxes and local Completion records track exact criterion-level evidence. Historical planning-status fields remain publication snapshots.
+LS-002, LS-003, LS-004, LS-005, LS-007, LS-008, LS-009, LS-010 have implementation and acceptance evidence. LS-001, LS-006 and LS-011 are also complete with native full offline, recurring-voice, actual diarization-cancellation and clean-setup evidence. At the historical validation checkpoint, LS-012 remained incomplete pending the representative quality/performance/stability gates above. It is now closed under the owner acceptance decision recorded at the top of this report. GitHub checkboxes and local Completion records track exact criterion-level evidence. Historical planning-status fields remain publication snapshots.
 
 ## Constructed language-switch challenge
 
@@ -123,16 +139,16 @@ Before model predictions, the Polish reference window was fixed to 0–582.59 s 
 
 **Neither profile passes the 15% target on this predeclared natural sample.** The earlier tiny FLEURS scores do not override this failure. The source was not reclassified or the threshold changed after observing results. Quality's short run also observed nine system-pressure warning samples, a 17.370 s sampled interval; this cannot be attributed exclusively to the model and is not a passed no-pressure gate. Fast's text run had all 11 pressure samples normal. Both returned the documented alignment fallback.
 
-Next after the user's explicit resume: investigate deletion/substitution causes and evaluate the accepted first fallback, whisper.cpp/Metal, before any engine/scope decision; complete English comparison, representative 30-minute performance with the selected profile and remaining challenge/manual reference gates. No release profile is accepted while these failures remain unresolved. See [reference provenance and preparation](../research/reference-corpora.md). The 2026-10-16 pause was ended by the user on 2026-10-17; the Goal remains incomplete.
+Next after the user's explicit resume: investigate deletion/substitution causes and evaluate the accepted first fallback, whisper.cpp/Metal, before any engine/scope decision; complete English comparison, representative 30-minute performance with the selected profile and remaining challenge/manual reference gates. No release profile was accepted against the original quantitative gates at that checkpoint; the current personal-use acceptance is recorded above. See [reference provenance and preparation](../research/reference-corpora.md). The 2026-10-16 pause was ended by the user on 2026-10-17; the Goal was still incomplete at that checkpoint; the later owner closeout decision supersedes that delivery status.
 
 ## Project-local history follow-up (2026-10-17)
 
 The user requested transcript history and discoverable disk files in ignored `output/`. Implemented the new default, resumable/source-preserving migration, four automatic saved-revision copies, copyable folder paths, separate optional-copy failures and regeneration/startup repair. 208 model-free tests, Ruff, TypeScript/build and nine actual Chromium checks pass. The actual previous empty default store migrated successfully; populated history/edit/media migration is tested deterministically. See [local history evidence](local-history.md). This functional extension does not change or pass the unresolved inference quality gates.
 
-The same history extension additionally passes 20 actual cached-model EN/PL browser checks under external-network denial and an empty HF home, including automatic copies after inference, saved edits matching disk exports and owned-folder deletion. Decoder diagnostics in [ASR diagnosis](asr-diagnosis.md) retain all five additional failures; no production profile changed. The user deferred independent manual speaker-boundary auditing to later practical checking on 2026-10-17. That metric remains unverified, and this report does not certify 90% attribution or full release readiness.
+The same history extension additionally passes 20 actual cached-model EN/PL browser checks under external-network denial and an empty HF home, including automatic copies after inference, saved edits matching disk exports and owned-folder deletion. Decoder diagnostics in [ASR diagnosis](asr-diagnosis.md) retain all five additional failures; no production profile changed. The user deferred independent manual speaker-boundary auditing to later practical checking on 2026-10-17. That metric remains unverified, and this report does not certify 90% attribution; personal-use MVP acceptance is a separate owner decision recorded above.
 
 ## Final practical diagnostics (2026-10-17)
 
 The one pinned whisper.cpp/Metal Turbo beam5 comparison also fails Polish WER: 394/1929 = 20.4251%. CLI wall 21.268 s, peak RSS 2137702400 bytes, 13 normal pressure samples. Backend MTL0 and cached offline operation are verified; native zero-duration token/segment limitations and the reporter correction are disclosed in [ASR diagnosis](asr-diagnosis.md). No production engine change is justified by this result. No larger model was downloaded.
 
-Natural three-voice/overlap processing succeeds in 58.712 s for 120 s audio with three recurring IDs. Instrumental 30 s music generates two spurious words and no speaker turns: a recorded recognition failure. The application now warns when ASR produces text but successful diarization detects no turns, preserving all model text. A real offline repeat verifies the warning; the complete fast suite has 210 passes. See [practical challenges](challenges.md). Manual attribution auditing remains deferred, and formal English/30-minute selected-profile gates remain pending. The application is available for practical use; the full MVP release remains uncertified.
+Natural three-voice/overlap processing succeeds in 58.712 s for 120 s audio with three recurring IDs. Instrumental 30 s music generates two spurious words and no speaker turns: a recorded recognition failure. The application now warns when ASR produces text but successful diarization detects no turns, preserving all model text. A real offline repeat verifies the warning; the complete fast suite has 210 passes. See [practical challenges](challenges.md). Manual attribution auditing remains deferred, and formal English/30-minute selected-profile gates remain pending. The application is available for practical use; the original quantitative quality targets remain uncertified; the MVP is accepted for personal use as recorded above.

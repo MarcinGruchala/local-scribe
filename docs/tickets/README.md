@@ -4,6 +4,10 @@ Date: 2026-10-16. Status: published to GitHub; all 12 issues were open at public
 
 Source of truth: [accepted specification](../specs/mvp.md). Supporting evidence: [model research](../research/local-asr-models.md). Review artifact: [interactive plan](../plans/mvp.packed.html).
 
+## MVP closeout — 2026-10-18
+
+Marcin accepted the iteration after practical testing and improvements and requested ticket closure and merge into `main`. LS-001–LS-011 already have completion evidence; LS-012 is resolved by that explicit owner acceptance with the documented quality/benchmark exceptions. The original planning statuses and execution policy below are retained as history. Their strict quantitative blocking rule is superseded for this iteration by [specification section 13](../specs/mvp.md#13-owner-acceptance-and-mvp-closure--2026-10-18). No missing or failed measurement is labelled passed; see [release evidence](../validation/mvp-release.md).
+
 ## Accepted product decisions
 
 - If diarization fails after successful ASR, keep the transcript and show a clear warning with unavailable speaker labels.

@@ -5,6 +5,8 @@ Date: 2026-10-16.
 Owner: Marcin.  
 Target: personal use on a MacBook Pro with Apple M5 Pro and 64 GB unified memory, as shown in the supplied screenshot. No hardware benchmark was run.
 
+Current delivery decision: Marcin accepted the personal-use MVP on 2026-10-18 with the explicit validation exceptions in section 13. The original planning thresholds below remain unchanged as historical targets.
+
 ## 1. Outcome
 
 Marcin can import a local recording, obtain a transcript in English or Polish, see when each person spoke, correct the result, and export it. After initial installation and model downloads, the application processes recordings without an internet connection. Audio, transcripts, and speaker embeddings stay on the Mac.
@@ -257,3 +259,9 @@ Each ticket cites the relevant FR IDs, lists prerequisites, includes acceptance 
 - [Vite static deployment](https://vite.dev/guide/static-deploy.html): production build output for same-origin local hosting.
 
 Limits, interfaces, quality thresholds, and delivery choices form the accepted planning baseline. Model selection and measured quality remain provisional until validation. External documentation supports tool capabilities; it does not validate this application or its performance on this Mac.
+
+## 13. Owner acceptance and MVP closure — 2026-10-18
+
+After practical testing and his own improvements, Marcin explicitly accepted the MVP as complete and requested closure of its tickets and merge into `main`. For this iteration, personal-use acceptance plus the recorded functional/offline evidence is the delivery criterion. Outstanding formal reference benchmarks and measured recognition failures are accepted exceptions, not numerical passes. In particular, Polish WER above 15%, unfinished representative English/90% speaker-attribution measurements, the deferred exact 30-minute benchmark, and the documented music/language-switch failures remain visible in [release evidence](../validation/mvp-release.md).
+
+This explicit owner decision supersedes the previous blocking status of these targets for MVP closure without lowering their values or changing historical results. It authorizes closing LS-012 and completing the iteration. Further accuracy benchmarking or model/corpus exploration is future work only when separately requested.

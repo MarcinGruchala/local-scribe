@@ -21,13 +21,13 @@ A recorded end-to-end result establishes whether the application meets the accep
 
 ## Acceptance criteria
 
-- [ ] FR-01 through FR-13 each have concrete pass/fail evidence and a reproducible command or workflow.
-- [ ] Clean reference WER is at most 15% separately for English and Polish, or the failed target is explicitly recorded for a scope/model decision.
-- [ ] Speaker-attributed reference speech duration is at least 90% correct under the specified scoring policy, or the failed target is explicitly recorded.
-- [ ] Total real-time factor is at most 1.0 on the representative 30-minute file without sustained memory pressure, or the measured shortfall is explicitly presented for review.
-- [ ] Actual offline ASR plus diarization succeeds; fixture adapters do not stand in for model evidence.
-- [ ] All earlier tickets are done, setup is reproducible, and remaining human prerequisites are resolved.
-- [ ] The release report distinguishes functional success, quality, performance, and unresolved limitations. No failed or pending gate is labelled passed.
+- [x] FR-01 through FR-13 each have concrete pass/fail evidence and a reproducible command or workflow.
+- [x] Clean reference WER is at most 15% separately for English and Polish, or the failed target is explicitly recorded for a scope/model decision. **Owner-accepted exception (2026-10-18):** Polish failures and unfinished representative English comparison remain recorded; no 15% pass is claimed.
+- [x] Speaker-attributed reference speech duration is at least 90% correct under the specified scoring policy, or the failed target is explicitly recorded. **Owner waiver (2026-10-18):** independent measurement is deferred; no 90% pass is claimed.
+- [x] Total real-time factor is at most 1.0 on the representative 30-minute file without sustained memory pressure, or the measured shortfall is explicitly presented for review. **Owner waiver (2026-10-18):** the exact 30-minute gate is deferred; the separate 62-minute result remains evidence only.
+- [x] Actual offline ASR plus diarization succeeds; fixture adapters do not stand in for model evidence.
+- [x] All earlier tickets are done, setup is reproducible, and remaining human prerequisites are resolved. **Owner decision (2026-10-18):** no further human reference audit is required for this accepted personal-use iteration.
+- [x] The release report distinguishes functional success, quality, performance, and unresolved limitations. No failed or pending gate is labelled passed.
 
 ## Verification
 
@@ -40,3 +40,5 @@ Use the specification's normalization/scoring policy and report fixture duration
 2026-10-17: Work resumed. Project-local history/disk exports are delivered in `39a7cc4`, with 208 fast tests and 20 actual offline EN/PL browser checks in addition to nine fixture checks. Five controlled MLX decoding diagnostics all fail the fixed Polish 15% gate; production settings remain unchanged. One pinned whisper.cpp/Metal Turbo comparison is being prepared, without broader model search. The user explicitly defers independent manual speaker-boundary auditing to later practical use; that metric remains unverified. No additional gold-corpus acquisition is pursued. This ticket and the Goal remain incomplete; see docs/validation/asr-diagnosis.md and docs/validation/local-history.md.
 
 2026-10-17 final diagnostics: The pinned whisper.cpp/Metal Turbo beam5 result also fails Polish WER (394/1929 = 20.4251%); all 13 pressure samples are normal. Natural three-voice/overlap processing completes with three recurring IDs; label accuracy is unverified. Instrumental music produces two spurious words, explicitly retained as a recognition failure. Added and verified a review warning for text with no detected speaker turns; the complete fast suite has 210 passes. App restarted offline on port 8768, all inference finished, no additional model search. Formal English/attribution/selected-profile performance evidence remains incomplete; see updated release and challenge reports.
+
+2026-10-18 — Accepted and closed by owner decision. Marcin reported successful practical testing and his own improvements, accepted the MVP as complete, and explicitly authorized ticket closure and merge to main. Recorded functionality/offline evidence is accepted for this iteration; unfinished formal benchmarks and known model recognition failures are accepted exceptions, not claimed passes. The original planning status above is unchanged. See specification section 13 and the owner closeout in docs/validation/mvp-release.md. Final checks and merge are tracked by the closeout pull request.

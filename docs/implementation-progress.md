@@ -1,17 +1,16 @@
 # Implementation progress
 
-Updated: 2026-10-18. Branch: `codex/mvp-implementation`. **Goal is not complete.**
+Updated: 2026-10-18. Delivery status: **MVP ACCEPTED BY MARCIN; closeout and merge authorized.**
 
-## Current checkpoint
+## Closeout decision
 
-- UI redesign (2026-10-18, user request): dark theme for the whole app and a unified recording studio replacing the separate Transcript / Listen & review views — sidebar navigation, transcript editor with speaker column, details inspector (speakers with talk-time share, current/selected segment, exports, local files), player dock with a zoomable speaker timeline, transcript search and keyboard shortcuts. No API or backend change. Fixture Chromium suites `browser-smoke`, `browser-review`, `browser-history`, `browser-states`, `browser-local-files` and `browser-navigation` pass; view-toggle steps were replaced with studio checks. `browser-restored-transcript` (needs the restored private recording) was updated for the removed toggle but not rerun; the model-backed `browser-real-*` scripts needed no change and were not rerun.
+Marcin practically tested and improved the application, accepted this MVP as complete, and requested closure of its tickets and merge to `main`. Specification section 13 and the release report record that explicit acceptance. The prior NOT READY status is superseded for this personal-use iteration. Failed and unfinished formal quality/benchmark targets remain documented accepted limitations; none is relabelled a numerical pass. No additional reference audit or model search is required for closeout.
 
-- The previously uncommitted history/review frontend work is now included in the repository: searchable paginated transcript history, direct listening/editing view, playback controls and draft-preserving navigation. Verification on 2026-10-18: 213 backend tests, Ruff, TypeScript/build and both new Chromium scripts pass (six review checks and five history checks). Private output remains ignored.
+The accepted source includes the dark unified recording studio, searchable history, restored long-recording playback/editing, local exports, and the full existing offline workflow. LS-001–LS-011 already have completed GitHub issues; LS-012 is resolved by the recorded acceptance/waivers and linked to the merge pull request. Local publication planning-status fields remain unchanged.
 
-- The user resumed work and requested discoverable project-local history. Commit `39a7cc4` is pushed: ignored `output/` default, source-preserving/resumable legacy-store migration, automatic TXT/SRT/VTT/JSON after completion and saved edits, copyable folder paths, separate copy failures and repair. Decoder findings are documented in pushed `da6f1ef` and the latest validation update.
-- Normal app is running at `http://127.0.0.1:8768` under OS external-network denial with empty `HF_HOME`. Fixture server 8766 is stopped. All model diagnostics are finished; the heavy slot is free. Do not start competing inference if a user job is active/queued.
-- The user deferred independent manual speaker-boundary auditing to later practical checking. Do not pursue further gold-corpus acquisition or broad model/decoder searches. The 90% metric remains unverified; no threshold is silently weakened.
-- LS-001–LS-011 remain complete/closed, with English follow-up evidence posted to #8/#9. LS-012 remains open with current failures/deferrals documented. Historical ticket planning-status fields are preserved. Release decision remains **NOT READY**.
+## Merge handoff
+
+Closeout is prepared in an isolated managed worktree on `codex/mvp-closeout`, based on implementation/UI commit `dfb9f0b`. Target: `main`. Closeout verification on 2026-10-18: `make check` (213 passes, Ruff, TypeScript), `make build`, and the actual read-only long-recording Chromium check all pass. PR/merge identity and final remote states are recorded in the closeout PR. Runtime/process statements from earlier checkpoints are historical, not current monitoring. Private `output/` and external cached models remain untouched and excluded from Git.
 
 ## Verified
 
@@ -32,12 +31,8 @@ Updated: 2026-10-18. Branch: `codex/mvp-implementation`. **Goal is not complete.
 - Models: `~/Library/Caches/LocalScribe/models/`. Prior persistent references/results: `~/Library/Application Support/LocalScribe/validation/2026-10-16/`, including `localscribe-reference-research`, `localscribe-validation`, `localscribe-private-validation`, `localscribe-full-offline`, `localscribe-asr-diagnosis-2026-10-17`, and `localscribe-whisper-cpp-2026-10-17`. The exact private input path is only in external `run-source.json`.
 - New challenge raw/aggregate reports: `~/Library/Application Support/LocalScribe/validation/2026-10-17/challenges/`. Do not depend on temporary directories surviving restart. Raw recordings/transcripts/weights/credentials never enter Git.
 
-## Remaining formal release evidence
+## Accepted limitations and future work
 
-1. Polish WER target fails; neither production profile nor the alternative diagnostic is accepted for release quality. Broader searches are deferred in favor of practical use.
-2. English candidate `sbc005-en-300.89s.wav` / matching reference has 721 normalized words and two source uncertain-hearing spans. Representative profile comparison is not run. IU times are not gold speech boundaries.
-3. Manual attribution accuracy is deferred/unverified at the user's request. Do not claim 90%.
-4. Representative 30-minute performance with an accepted release profile remains pending. Available natural input: `CBIZ_LUZ_013.wav` (1801.301 s). The private 62-minute provisional run does not replace this specific gate.
-5. Challenge recognition failures remain explicit; functional success does not certify text or speaker accuracy. Update #12/release evidence on any later practical or formal evaluation; do not mark the Goal complete while required evidence is missing.
+Polish WER remains above 15%; representative English comparison, independent 90% attribution scoring and the exact selected-profile 30-minute benchmark are deferred. Instrumental-music hallucination and mixed-language omission remain recorded. The separate 62-minute stability result does not prove the deferred formal targets. These limitations are accepted by the owner for this MVP; further investigation requires a separate request. See `docs/validation/mvp-release.md`, `asr-diagnosis.md` and `challenges.md`.
 
-Start when stopped: `LOCALSCRIBE_PORT=8768 make start`; check current port ownership first. Preserve original media and ignored output; keep inference sequential.
+Start locally: `make start`, or `LOCALSCRIBE_PORT=8768 make start` if the default port is occupied. Check port/job ownership before runtime tests, preserve original media and ignored output, and keep heavy inference sequential.

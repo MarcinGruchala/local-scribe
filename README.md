@@ -2,7 +2,7 @@
 
 A local web application for transcribing imported English and Polish audio/video files on Apple Silicon. Transcription uses MLX Whisper; speaker diarization uses Community-1 on the CPU. Inference runs sequentially. Recordings and results remain on your Mac.
 
-**Release status:** the complete functional application and real cached offline ASR plus diarization are verified. Representative quality, speaker accuracy and sustained performance gates remain pending. See [progress](docs/implementation-progress.md) and [release evidence](docs/validation/mvp-release.md). Deterministic fixtures establish software behavior, not model accuracy.
+**Release status:** MVP accepted for personal use by Marcin on 2026-10-18 after his practical tests and improvements. Functional workflows and real cached offline ASR plus diarization have recorded evidence. Known recognition failures and unfinished quantitative benchmarks are accepted limitations of this iteration, not claimed passes. See [closeout decision and release evidence](docs/validation/mvp-release.md) and [progress](docs/implementation-progress.md).
 
 ## AI development setup
 
@@ -24,7 +24,7 @@ make doctor
 
 Review the [Community-1 conditions](https://huggingface.co/pyannote/speaker-diarization-community-1) yourself. LocalScribe never accepts them for you. The installed Hugging Face CLI supports browser/device login: run `.venv/bin/hf auth login --no-add-to-git-credential` in your terminal, choose browser login if prompted, and personally authorize it in your browser. This stores the credential outside the repository; you do not need to create a manual access token. An existing narrowly scoped download token in an external credential store or `HF_TOKEN` remains an alternative. Credentials never belong in the LocalScribe UI, Git, issue comments, or command arguments. If you used `HF_TOKEN`, unset it after setup. Downloads happen only through `make models`; startup never downloads weights. See the [complete setup and offline verification guide](docs/setup.md).
 
-`model-lock.json` records exact model revisions. Local manifests record SHA-256 hashes for each asset. The Fast profile is provisional pending reference measurements; the Quality profile requires an explicit compatibility spike before it is enabled; representative quality remains unverified for both profiles. See [model spike](docs/research/model-spike.md).
+`model-lock.json` records exact model revisions. Local manifests record SHA-256 hashes for each asset. The Fast profile is the accepted personal-use MVP default, with the recorded reference-quality limitations; the Quality profile requires an explicit compatibility spike before it is enabled; representative quality remains unverified for both profiles. See [model spike](docs/research/model-spike.md).
 
 ## Start
 
