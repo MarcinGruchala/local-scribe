@@ -37,14 +37,17 @@ export default function ProofreadingTools({ transcript, dirty, saving, onBusy, o
     return () => { disposed = true; clearTimeout(timer); };
   }, [jobId, retry]);
   const blocks = transcript.grouping?.blocks ?? transcript.segments.map(s => ({ ...s, segmentIds: [s.id] }));
+  const selectedBlock = blocks[blockIndex];
+  useEffect(() => { setBlockIndex(0); }, [jobId, transcript.revision]);
   const busy = !!task && active.has(task.status);
   const stale = !!task && (task.stale || task.revision !== transcript.revision);
   const reviewable = task?.status === 'ready' && !stale;
   const disabled = dirty || saving;
   async function start() {
+    if (scope === 'block' && !selectedBlock) { setError('Select an available saved block.'); return; }
     onBusy(true); setError('');
     try {
-      await api.startProofreading(jobId, transcript.revision, scope === 'block' ? blocks[blockIndex]?.segmentIds : undefined, glossary.split(/[,\n]/).map(s => s.trim()).filter(Boolean));
+      await api.startProofreading(jobId, transcript.revision, scope === 'block' ? selectedBlock.segmentIds : undefined, glossary.split(/[,\n]/).map(s => s.trim()).filter(Boolean));
       setSelected(new Set()); setRetry(value => value + 1);
     } catch (error) { setError(messageOf(error)); }
     finally { onBusy(false); }
@@ -73,7 +76,7 @@ export default function ProofreadingTools({ transcript, dirty, saving, onBusy, o
     <label>Proofreading scope<select aria-label="Proofreading scope" value={scope} disabled={saving || busy} onChange={event => setScope(event.target.value)}><option value="entire">Entire recording</option><option value="block">Saved block</option></select></label>
     {scope === 'block' && <label>Source block<select aria-label="Proofreading block" value={blockIndex} disabled={saving || busy} onChange={event => setBlockIndex(Number(event.target.value))}>{blocks.map((block, index) => <option key={block.id} value={index}>{index + 1} · {timestamp(block.start)} · {block.segmentIds.length} segments</option>)}</select></label>}
     <label>Protected spellings (optional)<textarea aria-label="Proofreading glossary" value={glossary} maxLength={700} disabled={saving || busy} placeholder="Names or terms, separated by commas" onChange={event => setGlossary(event.target.value)} /></label>
-    <button className="button secondary full" type="button" disabled={disabled || busy || !transcript.segments.length || !readiness?.ready || readiness.heavyWorkBlocked} onClick={start}>Preview AI corrections</button>
+    <button className="button secondary full" type="button" disabled={disabled || busy || !transcript.segments.length || !readiness?.ready || readiness.heavyWorkBlocked || (scope === 'block' && !selectedBlock)} onClick={start}>Preview AI corrections</button>
     {busy && <div role="status"><p>Proofreading {task.status} · {task.progress} chunks completed. Saved transcript and exports are unchanged.</p><button className="button secondary" type="button" disabled={task.status === 'cancelling'} onClick={cancel}>Cancel proofreading</button>{task.status === 'cancelling' && <p>Waiting for the current model response to finish safely. No corrections will be published.</p>}</div>}
     {error && <p className="notice error" role="alert">{error} Saved text and manual drafts remain available.</p>}
     {task && !busy && <div>
@@ -86,7 +89,7 @@ export default function ProofreadingTools({ transcript, dirty, saving, onBusy, o
           <p className="correction-diff">{suggestion.diff.map((part, index) => <span key={index}>{part.kind === 'equal' ? part.old : <><del>{part.old}</del><ins>{part.new}</ins></>}</span>)}</p>
           <div className="cleanup-actions"><button className="text-button" type="button" disabled={disabled || suggestion.uncertain} onClick={() => decide('apply', [suggestion.id])}>Accept correction</button><button className="text-button" type="button" disabled={disabled} onClick={() => decide('reject', [suggestion.id])}>Reject suggestion</button></div>
         </li>)}</ol>
-        <div className="cleanup-actions"><button className="button primary" type="button" disabled={disabled || !selected.size} onClick={() => decide('apply', [...selected])}>Accept selected corrections</button><button className="button secondary" type="button" disabled={disabled || !task.suggestions.length} onClick={() => decide('reject', task.suggestions.map(s => s.id))}>Reject all suggestions</button></div>
+        <div className="cleanup-actions"><button className="button primary" type="button" disabled={disabled || !selected.size} onClick={() => decide('apply', [...selected])}>Accept selected corrections</button><button className="button secondary" type="button" disabled={disabled || !selected.size} onClick={() => decide('reject', [...selected])}>Reject selected suggestions</button><button className="button secondary" type="button" disabled={disabled || !task.suggestions.length} onClick={() => decide('reject', task.suggestions.map(s => s.id))}>Reject all suggestions</button></div>
         <p className="inspector-hint">Each accepted batch is one Undo. Remaining suggestions become stale after a save; review your selection before accepting.</p>
       </>}
     </div>}

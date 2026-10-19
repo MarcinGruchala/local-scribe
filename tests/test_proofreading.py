@@ -430,3 +430,109 @@ def test_adapter_refuses_redirect_auth_malformed_and_oversized_without_proxy(
     with pytest.raises(ValueError):
         LocalModel().request("GET", "/api/v1/models")
     assert captured[0][0] == "127.0.0.1" and len(captured) == 2
+
+
+@pytest.mark.parametrize(
+    "old,new",
+    [
+        ("We can’t leave", "We can leave"),
+        ("I couldn’t go", "I could go"),
+        ("Anna went home", "Ania went home"),
+    ],
+)
+def test_typographic_negation_and_initial_names_are_protected(old, new):
+    with pytest.raises(ValueError):
+        validate_response(
+            {"changes": [{"id": "a", "old": old, "new": new, "uncertain": False}]},
+            [{"id": "a", "text": old}],
+        )
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        None,
+        {},
+        {"choices": [{"finish_reason": "stop", "message": None}]},
+        {"choices": [{"finish_reason": "stop", "message": {"content": "{}"}}], "usage": None},
+        {"choices": "invalid"},
+    ],
+)
+def test_malformed_nested_completion_is_a_controlled_failure(monkeypatch, response):
+    model = LocalModel()
+    model.request = lambda *args: response
+    with pytest.raises((ValueError, TypeError, KeyError)):
+        model.generate([], [], [])
+
+
+def test_transient_proofreading_database_error_does_not_stop_worker(tmp_path):
+    import sqlite3
+    import threading
+
+    from localscribe.jobs import Jobs
+    from localscribe.storage import Storage
+    from localscribe.worker import Worker
+    from test_worker import wait_for
+
+    jobs = Jobs(Storage(tmp_path / "store"))
+    jobs.initialize()
+    service = Proofreading(jobs, ModelFixture())
+    called = threading.Event()
+
+    def run_next(*args):
+        called.set()
+        raise sqlite3.OperationalError("database is locked")
+
+    service.run_next = run_next
+    worker = Worker(jobs, tmp_path / "models", proofreading=service)
+    worker.start()
+    try:
+        wait_for(called.is_set)
+        assert worker.alive
+    finally:
+        worker.stop()
+
+
+def test_pipeline_child_retains_shared_lock_after_launcher_crash(tmp_path):
+    import os
+    import subprocess
+    import sys
+
+    from localscribe import heavy
+    from test_worker import wait_for
+
+    marker = tmp_path / "entered"
+    release = tmp_path / "release"
+    child = """import pathlib,sys,time
+pathlib.Path(sys.argv[1]).touch()
+while not pathlib.Path(sys.argv[2]).exists(): time.sleep(.01)
+"""
+    # The parent exits without finally/unlock, exactly like a killed launcher.
+    parent = """import os,subprocess,sys
+from localscribe.heavy import heavy_slot
+with heavy_slot() as descriptor:
+    assert descriptor
+    subprocess.Popen([sys.executable,'-c',sys.argv[1],sys.argv[2],sys.argv[3]],pass_fds=(descriptor,))
+    os._exit(0)
+"""
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(
+            __import__("pathlib").Path(__file__).resolve().parents[1] / "backend/src"
+        ),
+    }
+    subprocess.run(
+        [sys.executable, "-c", parent, child, str(marker), str(release)], env=env, check=True
+    )
+    try:
+        wait_for(marker.exists)
+        with heavy.heavy_slot() as acquired:
+            assert not acquired
+    finally:
+        release.touch()
+
+    def available():
+        with heavy.heavy_slot() as acquired:
+            return bool(acquired)
+
+    wait_for(available)

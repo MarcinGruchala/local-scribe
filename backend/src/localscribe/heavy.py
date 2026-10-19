@@ -24,6 +24,17 @@ def blocked():
         if marker["endpoint"] != adapter.endpoint:
             return True
         models = adapter.request("GET", "/api/v1/models")["models"]
+        if (
+            not isinstance(models, list)
+            or any(not isinstance(m, dict) for m in models)
+            or any(not isinstance(m.get("loaded_instances", []), list) for m in models)
+            or any(
+                not isinstance(i, dict) or not isinstance(i.get("id"), str)
+                for m in models
+                for i in m.get("loaded_instances", [])
+            )
+        ):
+            return True
         # Only an observed unload proves an interrupted request cannot still generate.
         if any(i["id"] == marker["model"] for m in models for i in m.get("loaded_instances", [])):
             return True
@@ -43,7 +54,7 @@ def heavy_slot():
             yield False
             return
         try:
-            yield not blocked()
+            yield handle.fileno() if not blocked() else False
         finally:
             fcntl.flock(handle, fcntl.LOCK_UN)
 

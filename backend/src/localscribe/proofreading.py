@@ -110,15 +110,17 @@ def validate_response(value, targets, glossary=()):
             raise ValueError("Words cannot be added, deleted or moved across segments.")
         if re.findall(r"\d+(?:[.,:/-]\d+)*", old) != re.findall(r"\d+(?:[.,:/-]\d+)*", new):
             raise ValueError("Protected numbers changed.")
-        for index, (before, after) in enumerate(zip(a, b, strict=True)):
-            x, y = before.casefold(), after.casefold()
+        for before, after in zip(a, b, strict=True):
+            x, y = before.casefold().replace("’", "'"), after.casefold().replace("’", "'")
             if x == y:
                 continue
             if (
                 x in NEGATIONS
                 or y in NEGATIONS
                 or any(c.isdigit() for c in before + after)
-                or (index > 0 and before[0].isupper())
+                or x.endswith("n't")
+                or y.endswith("n't")
+                or before[0].isupper()
                 or any(x in [t.casefold() for t in tokens(term)] for term in glossary)
             ):
                 raise ValueError("Protected value changed.")
@@ -192,11 +194,25 @@ class LocalModel:
                 "Set LOCALSCRIBE_LM_MODEL to an explicitly loaded LM Studio instance ID."
             )
         data = self.request("GET", "/api/v1/models")
+        if not isinstance(data, dict) or not isinstance(data.get("models"), list):
+            raise TypeError("Invalid LM Studio model discovery response.")
         for model in data["models"]:
+            if (
+                not isinstance(model, dict)
+                or not isinstance(model.get("loaded_instances", []), list)
+                or any(not isinstance(i, dict) for i in model.get("loaded_instances", []))
+            ):
+                raise ValueError("Invalid model discovery fields.")
             instance = next(
                 (i for i in model.get("loaded_instances", []) if i["id"] == self.model), None
             )
             if instance:
+                if (
+                    not isinstance(instance.get("config"), dict)
+                    or not isinstance(model.get("capabilities"), dict)
+                    or not isinstance(model["capabilities"].get("reasoning"), dict)
+                ):
+                    raise ValueError("Invalid model capability fields.")
                 if instance.get("config", {}).get("context_length", 0) < 8192:
                     raise ValueError("Load the selected model with at least 8192 context tokens.")
                 if "off" not in model.get("capabilities", {}).get("reasoning", {}).get(
@@ -241,8 +257,23 @@ class LocalModel:
             },
         }
         response = self.request("POST", "/v1/chat/completions", payload)
+        if (
+            not isinstance(response, dict)
+            or not isinstance(response.get("choices"), list)
+            or len(response["choices"]) != 1
+            or not isinstance(response["choices"][0], dict)
+        ):
+            raise ValueError("Invalid completion envelope.")
         choice = response["choices"][0]
-        message = choice["message"]
+        message = choice.get("message")
+        usage = response.get("usage", {})
+        if (
+            not isinstance(message, dict)
+            or not isinstance(message.get("content"), str)
+            or not isinstance(usage, dict)
+            or not isinstance(usage.get("completion_tokens_details", {}), dict)
+        ):
+            raise TypeError("Invalid completion fields.")
         if (
             choice["finish_reason"] != "stop"
             or message.get("tool_calls")

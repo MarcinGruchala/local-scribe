@@ -64,6 +64,7 @@ class Worker:
     ):
         self.jobs = jobs
         self.proofreading = proofreading
+        self._proofreading_recovery_needed = False
         self.model_root = Path(model_root)
         self.command_factory = command_factory or (
             lambda request, result: [
@@ -190,15 +191,26 @@ class Worker:
             while not self._stop.is_set():
                 with heavy_slot() as acquired:
                     if acquired:
-                        if self.proofreading and self.proofreading.run_next(self._stop.is_set):
-                            continue
+                        if self.proofreading:
+                            try:
+                                if self._proofreading_recovery_needed:
+                                    self.proofreading.recover()
+                                    self._proofreading_recovery_needed = False
+                                processed = self.proofreading.run_next(self._stop.is_set)
+                            except sqlite3.Error:
+                                # Reconcile claimed previews once SQLite becomes available.
+                                # The model request has unwound; its crash barrier is retained.
+                                self._proofreading_recovery_needed = True
+                                processed = False
+                            if processed:
+                                continue
                         try:
                             job = self.jobs.claim()
                         except sqlite3.Error:
                             job = None
                         if job is not None:
                             try:
-                                self._execute(job)
+                                self._execute(job, heavy_fd=acquired)
                             except (
                                 OSError,
                                 ValueError,
@@ -219,7 +231,7 @@ class Worker:
         finally:
             self._process = None
 
-    def _execute(self, job):
+    def _execute(self, job, heavy_fd=None):
         job_id, attempt = job["id"], job["attempt"]
         directory = self.jobs.directory(job_id)
         attempt_dir = directory / "attempts" / str(attempt)
@@ -272,6 +284,7 @@ class Worker:
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
                 env=environment,
+                pass_fds=(heavy_fd,) if heavy_fd is not None else (),
             )
             self._process = process
             identity = psutil.Process(process.pid)

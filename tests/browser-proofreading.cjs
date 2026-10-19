@@ -20,9 +20,11 @@ const ROOT = process.env.LOCALSCRIBE_GROUPING_TEST_ROOT;
   try {
     await page.goto(BASE+'/#job='+jobId);
     await tools.getByText('Loaded model: synthetic-browser',{exact:true}).waitFor();
+    await tools.getByLabel('Proofreading scope',{exact:true}).selectOption('block');
+    await tools.getByLabel('Proofreading block',{exact:true}).selectOption('399');
     await page.getByRole('button',{name:'Preview grouping',exact:true}).click();
     await page.getByRole('button',{name:'Apply all',exact:true}).click();await waitRevision(1);
-    await tools.getByLabel('Proofreading scope',{exact:true}).selectOption('block');
+    assert.equal(await tools.getByLabel('Proofreading block',{exact:true}).inputValue(),'0');
     await tools.getByLabel('Proofreading glossary',{exact:true}).fill('LocalScribe, Marcin');
     await tools.getByRole('button',{name:'Preview AI corrections',exact:true}).click();
     await tools.getByText(/suggestions\. Pending suggestions/).waitFor({timeout:15000});
