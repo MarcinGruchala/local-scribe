@@ -78,7 +78,41 @@ def tokens(value):
     return re.findall(r"[^\W_]+(?:['’][^\W_]+)*", value, flags=re.UNICODE)
 
 
-def validate_response(value, targets, glossary=()):
+class UnsafeCorrectionError(ValueError):
+    """A well-formed candidate exceeds the permitted proofreading scope."""
+
+
+def check_protected_text(old, new, glossary):
+    a, b = tokens(old), tokens(new)
+    if len(a) != len(b):
+        raise UnsafeCorrectionError("Words cannot be added, deleted or moved across segments.")
+    if re.findall(r"\d+(?:[.,:/-]\d+)*", old) != re.findall(r"\d+(?:[.,:/-]\d+)*", new):
+        raise UnsafeCorrectionError("Protected numbers changed.")
+    for before, after in zip(a, b, strict=True):
+        x, y = before.casefold().replace("’", "'"), after.casefold().replace("’", "'")
+        if x == y:
+            continue
+        if (
+            x in NEGATIONS
+            or y in NEGATIONS
+            or any(c.isdigit() for c in before + after)
+            or x.endswith("n't")
+            or y.endswith("n't")
+            or before[0].isupper()
+            or any(x in [t.casefold() for t in tokens(term)] for term in glossary)
+        ):
+            raise UnsafeCorrectionError("Protected value changed.")
+        # Small spelling repairs only; equal word counts alone do not prevent rewriting.
+        if x + "s" == y or y + "s" == x:
+            raise UnsafeCorrectionError(
+                "Grammatical plurality changes are outside proofreading scope."
+            )
+        ratio = difflib.SequenceMatcher(None, folded(before), folded(after)).ratio()
+        if folded(before) != folded(after) and (ratio < 0.72 or abs(len(x) - len(y)) > 2):
+            raise UnsafeCorrectionError("Replacement exceeds conservative spelling scope.")
+
+
+def validate_response(value, targets, glossary=(), *, flag_unsafe=False):
     """Fail closed; the server derives the diff and never trusts model metadata."""
     if not isinstance(value, dict) or set(value) != {"changes"}:
         raise ValueError("Invalid response object.")
@@ -105,31 +139,19 @@ def validate_response(value, targets, glossary=()):
             or any(ord(c) < 32 and c not in "\n\t\r" for c in new)
         ):
             raise ValueError("Invalid replacement text.")
-        a, b = tokens(old), tokens(new)
-        if len(a) != len(b):
-            raise ValueError("Words cannot be added, deleted or moved across segments.")
-        if re.findall(r"\d+(?:[.,:/-]\d+)*", old) != re.findall(r"\d+(?:[.,:/-]\d+)*", new):
-            raise ValueError("Protected numbers changed.")
-        for before, after in zip(a, b, strict=True):
-            x, y = before.casefold().replace("’", "'"), after.casefold().replace("’", "'")
-            if x == y:
-                continue
-            if (
-                x in NEGATIONS
-                or y in NEGATIONS
-                or any(c.isdigit() for c in before + after)
-                or x.endswith("n't")
-                or y.endswith("n't")
-                or before[0].isupper()
-                or any(x in [t.casefold() for t in tokens(term)] for term in glossary)
-            ):
-                raise ValueError("Protected value changed.")
-            # Small spelling repairs only; equal word counts alone do not prevent rewriting.
-            if x + "s" == y or y + "s" == x:
-                raise ValueError("Grammatical plurality changes are outside proofreading scope.")
-            ratio = difflib.SequenceMatcher(None, folded(before), folded(after)).ratio()
-            if folded(before) != folded(after) and (ratio < 0.72 or abs(len(x) - len(y)) > 2):
-                raise ValueError("Replacement exceeds conservative spelling scope.")
+        try:
+            check_protected_text(old, new, glossary)
+        except UnsafeCorrectionError:
+            if not flag_unsafe:
+                raise
+            # Preserve exact saved text. The rejected replacement is never reviewable/applicable.
+            new = old
+            change = {
+                **change,
+                "new": old,
+                "uncertain": True,
+                "reason": "The model's proposed change was outside the allowed proofreading scope.",
+            }
         if old.strip() != new.strip() or change["uncertain"]:
             result.append(
                 {
@@ -491,7 +513,9 @@ class Proofreading:
                 with uncertain_model(adapter):
                     response = adapter.generate(targets, context, payload["glossary"])
                 metrics.append(getattr(adapter, "last_metrics", {}))
-                suggestions.extend(validate_response(response, targets, payload["glossary"]))
+                suggestions.extend(
+                    validate_response(response, targets, payload["glossary"], flag_unsafe=True)
+                )
                 with self.jobs.storage.connect() as db:
                     db.execute(
                         "UPDATE proofreading_tasks SET progress=? WHERE id=?", (index + 1, task_id)

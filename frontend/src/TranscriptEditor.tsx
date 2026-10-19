@@ -5,6 +5,8 @@ import type { Job, Segment, Transcript } from './api';
 import Avatar from './Avatar';
 import Timeline from './Timeline';
 import TranscriptTools from './TranscriptTools';
+import ProofreadingTools from './ProofreadingTools';
+import type { ReviewSummary } from './ProofreadingTools';
 import type { TimelineTrack } from './Timeline';
 import { IconBack, IconCheck, IconChevron, IconDownload, IconForward, IconPause, IconPlay, IconSearch } from './icons';
 
@@ -67,6 +69,10 @@ type EditorProps = {
 };
 
 export default function TranscriptEditor({ job, transcript, heading, notices, inspectorExtras, onSaved, onDirtyChange }: EditorProps) {
+  const [view, setView] = useState<'transcript' | 'suggestions'>('transcript');
+  const [reviewSummary, setReviewSummary] = useState<ReviewSummary>({ corrections: 0, listening: 0, status: '', stale: false });
+  const initialSource = useRef(new URLSearchParams(window.location.hash.slice(1)).get('segment'));
+  const [revealedSuggestion, setRevealedSuggestion] = useState<string | null>(null);
   const [texts, setTexts] = useState<Record<string, string | null>>({});
   const [names, setNames] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false); const [feedback, setFeedback] = useState(''); const [saveError, setSaveError] = useState('');
@@ -192,6 +198,23 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
     const segment = segments.find(item => item.id === id); if (!segment) return;
     setSelectedId(id); seek(segment.start); reveal(id);
   }, [segments, seek, reveal]);
+  const locateSuggestion = useCallback((id: string, listen: boolean) => {
+    const source = segments.find(segment => segment.id === id);
+    if (!source) return;
+    setSelectedId(id); seek(source.start);
+    if (listen) { void play(); }
+    else { setFollow(false); setQuery(''); setMatchIndex(0); setView('transcript'); setRevealedSuggestion(id); }
+  }, [segments, seek, play]);
+  useEffect(() => {
+    if (view === 'transcript' && revealedSuggestion) reveal(revealedSuggestion, false);
+  }, [view, revealedSuggestion, reveal, sourcePartitions]);
+  useEffect(() => {
+    if (!ready || !initialSource.current) return;
+    const id = initialSource.current;
+    initialSource.current = null;
+    if (!segments.some(segment => segment.id === id)) return;
+    locateSuggestion(id, false);
+  }, [ready, segments, locateSuggestion]);
   function changeRate(value: number) {
     if (audio.current) audio.current.playbackRate = value;
     setRate(value);
@@ -264,8 +287,8 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
 
     <section className="transcript-pane" aria-label="Transcript editor">
       <div className="transcript-toolbar">
-        <div className="transcript-summary"><h3>Transcript</h3><span>{segments.length} segments · {languageName(transcript.language)}</span></div>
-        <div className="transcript-tools">
+        <div className="transcript-view-tabs" role="tablist" aria-label="Transcript views"><button type="button" role="tab" aria-selected={view === 'transcript'} onClick={() => setView('transcript')}>Transcript <span>{segments.length}</span></button><button type="button" role="tab" aria-selected={view === 'suggestions'} onClick={() => setView('suggestions')}>AI suggestions{reviewSummary.corrections + reviewSummary.listening > 0 && <span className="suggestions-badge">{reviewSummary.corrections + reviewSummary.listening}</span>}{['running', 'queued', 'cancelling'].includes(reviewSummary.status) && <span className="review-running-dot" aria-label="Proofreading in progress" />}</button></div>
+        <div className="transcript-tools" hidden={view !== 'transcript'}>
           <div className={`search-field${needle ? ' active' : ''}`}>
             <IconSearch size={15} />
             <input type="search" value={query} onChange={event => setQuery(event.target.value)} onKeyDown={searchKey} placeholder="Find in transcript" aria-label="Find in transcript" />
@@ -275,7 +298,9 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
           <label className="switch"><input type="checkbox" checked={follow} onChange={event => setFollow(event.target.checked)} /><span>Follow audio</span></label>
         </div>
       </div>
-      <div className="segments" ref={segmentList} role="region" aria-label="Transcript segments" tabIndex={0}>
+      {view === 'transcript' && reviewSummary.corrections + reviewSummary.listening > 0 && <div className="review-callout"><div><strong>AI review is ready</strong><span>{reviewSummary.corrections} {reviewSummary.corrections === 1 ? 'correction' : 'corrections'} · {reviewSummary.listening} to listen to</span></div><button type="button" className="button primary" onClick={() => setView('suggestions')}>Review suggestions</button></div>}
+      <ProofreadingTools transcript={transcript} dirty={dirty} saving={saving} visible={view === 'suggestions'} onBusy={setSaving} onSaved={onSaved} onSummary={setReviewSummary} onLocate={locateSuggestion} />
+      <div className="segments" hidden={view !== 'transcript'} ref={segmentList} role="region" aria-label="Transcript segments" tabIndex={0}>
         {segments.length === 0 ? <p className="empty">No speech was detected in this recording.</p> : blocks.map(block => {
           const sources = block.segmentIds.map(id => sourceById.get(id)!);
           if (sources.length === 1) return sourceRow(sources[0], segments.indexOf(sources[0]));

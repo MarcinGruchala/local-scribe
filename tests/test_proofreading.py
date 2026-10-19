@@ -605,3 +605,39 @@ def test_accepted_batch_keeps_saved_revision_when_export_copy_fails(client, tmp_
     monkeypatch.setattr(local_files, "write_saved_revision", writer)
     assert jobs.sync_local_files(job_id)["localFiles"]["status"] == "ready"
     assert jobs.undo(job_id, 1)["segments"][0]["editedText"] is None
+
+
+def test_protected_candidate_becomes_listening_flag_without_discarding_safe_corrections(
+    client, tmp_path  # noqa: F811
+):
+    _jobs, job_id, service = setup_service(client, tmp_path)
+    service.model = ModelFixture(
+        lambda targets: {
+            "changes": [
+                {
+                    "id": targets[0]["id"],
+                    "old": targets[0]["text"],
+                    "new": "hello 99",
+                    "uncertain": False,
+                },
+                {
+                    "id": targets[1]["id"],
+                    "old": targets[1]["text"],
+                    "new": "Hello world.",
+                    "uncertain": False,
+                },
+            ]
+        }
+    )
+    task = service.create(job_id, 0, ["s0", "s1"])
+    service.run_next()
+    preview = service.get(job_id)
+    assert preview["status"] == "ready"
+    flag = preview["suggestions"][0]
+    assert flag["uncertain"] and flag["old"] == flag["new"] == "hello world"
+    assert preview["suggestions"][1]["new"] == "Hello world."
+    with pytest.raises(JobError):
+        service.apply(job_id, task["id"], 0, ["s0"])
+    saved = service.apply(job_id, task["id"], 0, ["s1"])
+    assert saved["segments"][0]["editedText"] is None
+    assert saved["segments"][1]["editedText"] == "Hello world."

@@ -19,6 +19,18 @@ def main():
             time.sleep(0.15)
             if mode == "malformed":
                 return {"changes": [{"id": "unknown", "old": "x", "new": "x", "uncertain": False}]}
+            if mode == "mixed":
+                return {
+                    "changes": [
+                        {
+                            "id": s["id"],
+                            "old": s["text"],
+                            "new": s["text"] if i else s["text"].rstrip(".!") + "!",
+                            "uncertain": bool(i),
+                        }
+                        for i, s in enumerate(targets)
+                    ]
+                }
             return {
                 "changes": [
                     {

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import ProofreadingTools from './ProofreadingTools';
 import { api, timestamp } from './api';
 import type { GroupingPreview, OperationHistory, Transcript } from './api';
 
@@ -49,7 +48,6 @@ export default function TranscriptTools({ transcript, dirty, saving, onBusy, onS
       <ol className="preview-blocks">{preview.blocks.map(block => <li key={block.id}><span>{timestamp(block.start)}–{timestamp(block.end)} · {block.segmentIds.length} segments</span><p>{block.text}</p></li>)}</ol>
       <div className="cleanup-actions"><button type="button" className="button primary" disabled={disabled || !preview.changed} onClick={() => mutate('apply')}>Apply all</button><button type="button" className="button secondary" disabled={saving} onClick={() => setPreview(null)}>Cancel grouping</button></div>
     </section>}
-    <ProofreadingTools transcript={transcript} dirty={dirty} saving={saving} onBusy={onBusy} onSaved={onSaved} />
     <div className="operation-history">
       <h4>Changes &amp; history</h4>
       <div className="cleanup-actions"><button type="button" className="button secondary" aria-label="Undo saved operation" disabled={disabled || !currentHistory || !history?.canUndo} onClick={() => mutate('undo')}>Undo</button><button type="button" className="button secondary" aria-label="Redo saved operation" disabled={disabled || !currentHistory || !history?.canRedo} onClick={() => mutate('redo')}>Redo</button></div>
