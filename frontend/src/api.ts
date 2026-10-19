@@ -17,6 +17,8 @@ export type TranscriptBlock = { id: string; segmentIds: string[]; start: number;
 export type Grouping = { blocks: TranscriptBlock[]; manualSplits: string[] };
 export type GroupingPreview = { revision: number; beforeCount: number; afterCount: number; changed: boolean; blocks: TranscriptBlock[] };
 export type Transcript = { schemaVersion: 1; jobId: string; revision: number; language: string | null; duration?: number; segments: Segment[]; speakers: Speaker[]; warnings: Warning[]; provenance: Record<string, unknown>; grouping?: Grouping };
+export type ProofreadingSuggestion = { id: string; old: string; new: string; uncertain: boolean; reason?: string; diff: { kind: string; old: string; new: string }[] };
+export type ProofreadingTask = { id: string; revision: number; status: string; stale: boolean; progress: number; glossary: string[]; suggestions: ProofreadingSuggestion[]; error: string | null };
 export type OperationHistory = { revision: number; canUndo: boolean; canRedo: boolean; operations: { id: string; type: string; createdAt: number; baseRevision: number; resultRevision: number; applied: boolean }[] };
 export type ModelReadiness = { ready: boolean; message?: string; missing?: string[] };
 export type Health = {
@@ -98,6 +100,12 @@ export const api = {
   splitGrouping: (id: string, expectedRevision: number, beforeSegmentId: string) => request<Transcript>(`${idPath(id)}/grouping/split`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision, beforeSegmentId }) }),
   history: (id: string) => request<OperationHistory>(`${idPath(id)}/history`),
   moveHistory: (id: string, action: 'undo' | 'redo', expectedRevision: number) => request<Transcript>(`${idPath(id)}/history/${action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision }) }),
+  proofreadingReadiness: () => request<{ ready: boolean; model?: string; message?: string; heavyWorkBlocked?: boolean; recovery?: string | null }>('/api/proofreading/readiness'),
+  proofreading: (id: string) => request<ProofreadingTask | null>(`${idPath(id)}/proofreading`),
+  startProofreading: (id: string, expectedRevision: number, segmentIds?: string[], glossary: string[] = []) => request<ProofreadingTask>(`${idPath(id)}/proofreading`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision, segmentIds, glossary }) }),
+  cancelProofreading: (id: string, task: string) => request<ProofreadingTask>(`${idPath(id)}/proofreading/${encodeURIComponent(task)}/cancel`, { method: 'POST' }),
+  applyProofreading: (id: string, task: string, expectedRevision: number, segmentIds: string[]) => request<Transcript>(`${idPath(id)}/proofreading/${encodeURIComponent(task)}/apply`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision, segmentIds }) }),
+  rejectProofreading: (id: string, task: string, expectedRevision: number, segmentIds: string[]) => request<ProofreadingTask>(`${idPath(id)}/proofreading/${encodeURIComponent(task)}/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision, segmentIds }) }),
   delete: (id: string) => request<void>(idPath(id), { method: 'DELETE' }),
   media: (id: string) => `${idPath(id)}/media`,
   export: (id: string, format: string, source = 'current', layout = 'grouped') => `${idPath(id)}/export?format=${encodeURIComponent(format)}&source=${encodeURIComponent(source)}&layout=${encodeURIComponent(layout)}`,

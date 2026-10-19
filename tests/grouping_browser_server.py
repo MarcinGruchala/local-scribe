@@ -14,7 +14,7 @@ from localscribe.api import create_app
 from localscribe.config import Settings
 
 
-def main():
+def fixture_app():
     root = Path(os.environ["LOCALSCRIBE_GROUPING_TEST_ROOT"]).resolve()
     root.mkdir(parents=True, exist_ok=True)
     port = int(os.environ.get("LOCALSCRIBE_GROUPING_TEST_PORT", "8770"))
@@ -51,8 +51,12 @@ def main():
         result_path.write_text(json.dumps(result))
         assert jobs.publish(job["id"], claimed["attempt"], result_path)
         fixture.write_text(json.dumps({"jobId": job["id"]}))
-    import uvicorn
+    return app, root, port
 
+
+def main():
+    import uvicorn
+    app, _, port = fixture_app()
     uvicorn.run(app, host="127.0.0.1", port=port, access_log=False)
 
 

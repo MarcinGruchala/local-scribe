@@ -442,6 +442,8 @@ class Jobs:
         for speaker in transcript["speakers"]:
             speaker["displayName"] = edits["speakers"].get(speaker["id"], speaker["displayName"])
         transcript["revision"] = row["revision"]
+        if edits.get("proofreadingProvenance"):
+            transcript["provenance"]["proofreading"] = edits["proofreadingProvenance"]
         groups = edits.get("groups") or [[segment["id"]] for segment in transcript["segments"]]
         transcript["grouping"] = {
             "blocks": grouping.blocks(transcript["segments"], groups),

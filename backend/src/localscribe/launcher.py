@@ -60,7 +60,7 @@ def main() -> None:
             app = create_app(settings)
             from .worker import Worker
 
-            worker = Worker(app.state.jobs, settings.model_root)
+            worker = Worker(app.state.jobs, settings.model_root, proofreading=app.state.proofreading)
             app.state.worker = worker
             worker.start()
             browser_timer = None

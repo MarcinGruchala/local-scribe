@@ -42,3 +42,18 @@ NODE_PATH="$TMPDIR/localscribe-browser-tools/node_modules" \
 Use an already installed Playwright/Chromium instead when available; `BROWSER_EXECUTABLE` selects an explicit Chromium binary, and `NODE_PATH` selects the test-tool package directory. Native browser libraries must already be installed. `LOCALSCRIBE_GROUPING_TEST_PORT` overrides the fixture port (8770); `LOCALSCRIBE_GROUPING_TEST_ROOT` selects a **fresh, dedicated synthetic test directory** outside the checkout. Do not point it at private app output. The default makes a new directory beneath `TMPDIR` on each run. If a tool host injects another interpreter's site-packages through `PYTHONPATH`/`PYTHONHOME`, unset those for the Python 3.11 project commands.
 
 The optional `UI_CONTRACT_FIXTURE=1` mode runs only early UI contract tests with explicitly stubbed HTTP responses; it is not backend or restart acceptance. Normal delivery uses the default real-backend mode. Results and screenshots stay in the printed test directory, not Git. Fixture/browser success establishes software behavior, not ASR quality, Apple Silicon performance or real-model/offline validation.
+
+## Proofreading development and recovery
+
+The optional backend adapter uses LM Studio `/api/v1/models` for explicit loaded-instance readiness and `/v1/chat/completions` for schema-constrained, non-thinking output. Transcript/glossary/context are quoted untrusted data. No tools are exposed. The backend derives inline differences and performs protected-token, target-ID and exact-old-value validation before publishing a preview. Conservatism may reject a whole preview or miss valid corrections; it never repairs ASR facts automatically.
+
+`proofreading_tasks` migration 6 adds recording-owned snapshots and pending review state. Accepted batches use the existing transcript operation history and export-copy repair. A new saved revision invalidates unaccepted suggestions; no automatic rebase occurs. The cross-store heavy lock is inherited by the ASR child to survive a launcher crash. An independently running LLM request instead leaves a persistent completion barrier until an observed unload. See the [contract](specs/transcript-proofreading.md).
+
+Run `make check`, `make build`, and both browser runners with the previously provisioned local Playwright/Chromium (`NODE_PATH` may point to its external installation):
+
+```sh
+uv run --frozen --no-sync python tests/run_grouping_browser.py
+uv run --frozen --no-sync python tests/run_proofreading_browser.py
+```
+
+Both create fresh synthetic stores. The second injects only a deterministic model adapter; HTTP, database, worker, exports and browser are real. It isolates its synthetic heavy lock from real model work. These are fixture checks, not model-quality evidence. The explicit real-model spike and target-Mac procedure are in setup and the [validation report](validation/transcript-proofreading.md).

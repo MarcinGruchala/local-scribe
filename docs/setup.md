@@ -80,3 +80,30 @@ Open `http://127.0.0.1:8767` in a local browser. This policy denies external net
 With speaker turns enabled, import an approved English sample, wait for a completed result without a diarization-failure warning, and inspect real speaker labels/turns. Verify playback, timestamp seeking, saved text and speaker-name edits, all four exports and explicit deletion. Repeat for Polish. The browser verification scripts and sanitized evidence are described in [browser validation](validation/browser-smoke.md).
 
 Successful snapshot download or a green health panel does not prove every transitive runtime asset is cached. A complete real transcription-plus-diarization job under network denial establishes the functional offline gate. Corrected two-speaker references, accuracy scoring, challenge recordings, representative performance and sustained stability remain separate requirements in the [accepted specification](specs/mvp.md) and [release report](validation/mvp-release.md).
+
+## Optional LM Studio proofreading
+
+ASR and diarization still use the existing engines. Proofreading is a separate optional local text step. Use an already downloaded model whose runtime supports schema-constrained JSON and reasoning off. This feature never downloads or loads a model automatically.
+
+Inspect the actual installed artifact and loaded instances first:
+
+```sh
+lms ls --json
+lms ps --json
+lms load <verified-model-key> --context-length 8192 --parallel 1 --identifier localscribe-proofreading
+lms server start --port 1234 --bind 127.0.0.1
+LOCALSCRIBE_LM_URL=http://127.0.0.1:1234 \
+LOCALSCRIBE_LM_MODEL=localscribe-proofreading make start
+```
+
+Replace the placeholder with your actual installed model key, not its UI display name. The recorded Mac used `qwen/qwen3.8-27b` / `lmstudio-community/Qwen3.8-27B-MLX-4bit`; this is evidence for that artifact/runtime only. Paths and identifiers stay in local configuration. `LOCALSCRIBE_LM_URL` accepts only literal HTTP `127.0.0.1` or `[::1]` with an optional port, no credentials/path/query. Proxy environment variables and redirects are ignored/rejected. If LM Studio authentication is enabled, provide `LOCALSCRIBE_LM_TOKEN` through the backend environment or external secret manager; never paste it into browser fields, source files or command arguments. The browser sees readiness and suggestions, never model credentials. Do not enable LM Studio CORS or LAN access for this workflow.
+
+Open **AI suggestions** beside **Transcript**. In **New preview**, choose Entire recording or Saved block, optionally enter protected spellings (up to 30 short terms, 700 UTF-8 bytes total), and preview. Model readiness and refresh are under **Local model & refresh**. Use Corrections/Needs listening filters, search, Previous/Next, timestamp listening and Show in transcript to review each source passage. The compact player keeps the suggestion visible; its speaker timeline can be expanded. Preview does not save or export suggestions. Reject anything doubtful; uncertain phrases cannot be accepted automatically. Accept selected corrections as one saved operation, then use Undo/Redo even after restart. Accepting one batch makes remaining suggestions stale; generate a new preview for the new saved revision. Original ASR and segmented exports remain available; SRT/VTT retain source cue timings.
+
+The supervised worker serializes correction and ASR/diarization. Multiple upgraded stores also share a process lock. Older LocalScribe processes do not use this lock: finish/stop their processing before using the new model workflow. Other programs and manually started LM Studio predictions remain outside LocalScribe's scheduling control.
+
+Cancellation stops before the next chunk and waits for the current bounded request to finish. Closing a browser does not cancel durable work. Restart interrupts an active preview; start a fresh one. If a connection timeout or launcher crash leaves model completion uncertain, the worker blocks all new heavy work. Unload only the configured instance in LM Studio, wait until LocalScribe observes it absent and the recovery notice clears, then load it again and refresh readiness. Never unload unrelated sessions. This deliberately avoids assuming that a disconnected HTTP client stopped GPU generation.
+
+For validation, copy recordings/transcript excerpts into a new data root outside Git; never point the feature branch at your personal history just to test an upgrade. The optional `scripts/proofreading_spike.py --output-root /absolute/private-validation` uses the checked-in 40-passage synthetic set and the configured loaded model. Run it with `uv run --frozen --no-sync python`; manually review its private JSON results. It does not claim recognition accuracy or download anything.
+
+For a system-level offline check, start both LocalScribe and LM Studio under a verified network policy. `scripts/offline.sb` covers LocalScribe. `scripts/offline-lmstudio.sb` additionally allows Unix-domain IPC needed by Electron. The recorded test launched LM Studio's local executable with `--run-as-service --no-sandbox` under that outer macOS policy because nested Electron sandbox initialization failed. This flag is only part of the isolated validation procedure; the outer policy still denies external networking. Verify the policy rejects an external socket and permits loopback, confirm no pre-existing LM Studio process is serving instead, and load only already downloaded assets. Do not treat browser request blocking or offline environment variables alone as proof of full process isolation. See the evidence report for exact limitations.

@@ -53,9 +53,18 @@ def command_matches(actual, expected):
 
 class Worker:
     def __init__(
-        self, jobs, model_root: Path, *, command_factory=None, poll_interval=0.1, stop_grace=1.0
+        self,
+        jobs,
+        model_root: Path,
+        *,
+        command_factory=None,
+        poll_interval=0.1,
+        stop_grace=1.0,
+        proofreading=None,
     ):
         self.jobs = jobs
+        self.proofreading = proofreading
+        self._proofreading_recovery_needed = False
         self.model_root = Path(model_root)
         self.command_factory = command_factory or (
             lambda request, result: [
@@ -102,6 +111,8 @@ class Worker:
         try:
             self.recover_children()
             self.jobs.recover()
+            if self.proofreading:
+                self.proofreading.recover()
             self._stop.clear()
             self._thread = threading.Thread(
                 target=self._run, name="localscribe-worker", daemon=True
@@ -120,7 +131,7 @@ class Worker:
     def stop(self):
         self._stop.set()
         if self._thread:
-            self._thread.join(timeout=self.stop_grace + 10)
+            self._thread.join(timeout=135 if self.proofreading else self.stop_grace + 10)
             if self._thread.is_alive():
                 raise RuntimeError("The worker has not stopped; its ownership lock is retained.")
         self._release_lock()
@@ -174,36 +185,53 @@ class Worker:
                 continue
 
     def _run(self):
+        from .heavy import heavy_slot
+
         try:
             while not self._stop.is_set():
-                try:
-                    job = self.jobs.claim()
-                except sqlite3.Error:
-                    self._stop.wait(min(max(self.poll_interval, 0.05), 0.5))
-                    continue
-                if job is None:
-                    self._stop.wait(self.poll_interval)
-                    continue
-                try:
-                    self._execute(job)
-                except (
-                    OSError,
-                    ValueError,
-                    JobError,
-                    subprocess.SubprocessError,
-                    psutil.Error,
-                    sqlite3.Error,
-                ):
-                    self._fail(
-                        job["id"],
-                        job["attempt"],
-                        "pipeline_failed",
-                        "The worker could not start processing. Retry this job.",
-                    )
+                with heavy_slot() as acquired:
+                    if acquired:
+                        if self.proofreading:
+                            try:
+                                if self._proofreading_recovery_needed:
+                                    self.proofreading.recover()
+                                    self._proofreading_recovery_needed = False
+                                processed = self.proofreading.run_next(self._stop.is_set)
+                            except sqlite3.Error:
+                                # Reconcile claimed previews once SQLite becomes available.
+                                # The model request has unwound; its crash barrier is retained.
+                                self._proofreading_recovery_needed = True
+                                processed = False
+                            if processed:
+                                continue
+                        try:
+                            job = self.jobs.claim()
+                        except sqlite3.Error:
+                            job = None
+                        if job is not None:
+                            try:
+                                self._execute(job, heavy_fd=acquired)
+                            except (
+                                OSError,
+                                ValueError,
+                                JobError,
+                                subprocess.SubprocessError,
+                                psutil.Error,
+                                sqlite3.Error,
+                            ):
+                                self._fail(
+                                    job["id"],
+                                    job["attempt"],
+                                    "pipeline_failed",
+                                    "The worker could not start processing. Retry this job.",
+                                )
+                            continue
+                # Never retain the cross-store lock while idle; another store may be queued.
+                self._stop.wait(max(self.poll_interval, 0.05))
         finally:
             self._process = None
 
-    def _execute(self, job):
+    def _execute(self, job, heavy_fd=None):
         job_id, attempt = job["id"], job["attempt"]
         directory = self.jobs.directory(job_id)
         attempt_dir = directory / "attempts" / str(attempt)
@@ -256,6 +284,7 @@ class Worker:
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
                 env=environment,
+                pass_fds=(heavy_fd,) if heavy_fd is not None else (),
             )
             self._process = process
             identity = psutil.Process(process.pid)
