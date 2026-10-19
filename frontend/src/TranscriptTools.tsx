@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import ProofreadingTools from './ProofreadingTools';
 import { api, timestamp } from './api';
 import type { GroupingPreview, OperationHistory, Transcript } from './api';
 
@@ -48,12 +49,13 @@ export default function TranscriptTools({ transcript, dirty, saving, onBusy, onS
       <ol className="preview-blocks">{preview.blocks.map(block => <li key={block.id}><span>{timestamp(block.start)}–{timestamp(block.end)} · {block.segmentIds.length} segments</span><p>{block.text}</p></li>)}</ol>
       <div className="cleanup-actions"><button type="button" className="button primary" disabled={disabled || !preview.changed} onClick={() => mutate('apply')}>Apply all</button><button type="button" className="button secondary" disabled={saving} onClick={() => setPreview(null)}>Cancel grouping</button></div>
     </section>}
+    <ProofreadingTools transcript={transcript} dirty={dirty} saving={saving} onBusy={onBusy} onSaved={onSaved} />
     <div className="operation-history">
       <h4>Changes &amp; history</h4>
       <div className="cleanup-actions"><button type="button" className="button secondary" aria-label="Undo saved operation" disabled={disabled || !currentHistory || !history?.canUndo} onClick={() => mutate('undo')}>Undo</button><button type="button" className="button secondary" aria-label="Redo saved operation" disabled={disabled || !currentHistory || !history?.canRedo} onClick={() => mutate('redo')}>Redo</button></div>
       {historyError && <p role="alert">{historyError} <button className="text-button" onClick={() => setRetry(value => value + 1)}>Retry history</button></p>}
       {history && !currentHistory && <p role="status" className="notice warning">The saved revision changed in another tab. Reload after saving or discarding drafts.</p>}
-      <details><summary>Saved operations ({history?.operations.length ?? 0})</summary><ol className="history-operations">{history?.operations.map(operation => <li key={operation.id} className={operation.applied ? '' : 'undone'}><strong>{({ manual_save: 'Manual save', grouping: 'Group speaker segments', split: 'Split speaker block' } as Record<string, string>)[operation.type] || operation.type}</strong><span>Revision {operation.baseRevision} → {operation.resultRevision}{!operation.applied && ' · Undone'}</span></li>)}</ol></details>
+      <details><summary>Saved operations ({history?.operations.length ?? 0})</summary><ol className="history-operations">{history?.operations.map(operation => <li key={operation.id} className={operation.applied ? '' : 'undone'}><strong>{({ manual_save: 'Manual save', grouping: 'Group speaker segments', split: 'Split speaker block', proofreading: 'Accept AI corrections' } as Record<string, string>)[operation.type] || operation.type}</strong><span>Revision {operation.baseRevision} → {operation.resultRevision}{!operation.applied && ' · Undone'}</span></li>)}</ol></details>
       <p className="inspector-hint">One accepted batch is one Undo. History survives restart. A new edit clears Redo.</p>
     </div>
     {feedback && <p role="status">{feedback}</p>}

@@ -502,3 +502,11 @@ footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+.proofreading-tools { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 12px; }
+.proofreading-tools textarea { width: 100%; min-height: 64px; resize: vertical; }
+.proofreading-suggestions { max-height: 440px; overflow: auto; padding-left: 20px; }
+.proofreading-suggestions li { margin: 14px 0; overflow-wrap: anywhere; }
+.correction-diff { white-space: pre-wrap; line-height: 1.6; }
+.correction-diff del { background: #fce0dd; color: #7e2119; }
+.correction-diff ins { background: #def3e5; color: #145b31; text-decoration: none; }

@@ -45,6 +45,24 @@ class GroupingRequest(RevisionRequest):
         return value
 
 
+class ProofreadingRequest(GroupingRequest):
+    glossary: list[str] = Field(default_factory=list, max_length=30)
+
+    @field_validator("glossary")
+    @classmethod
+    def validate_glossary(cls, value):
+        if (
+            any(not term.strip() or len(term.encode()) > 80 for term in value)
+            or sum(len(term.encode()) for term in value) > 700
+        ):
+            raise ValueError("Use up to 30 short protected spellings, at most 700 UTF-8 bytes.")
+        return value
+
+
+class SuggestionRequest(RevisionRequest):
+    segmentIds: list[str] = Field(min_length=1, max_length=10000)
+
+
 class SplitRequest(RevisionRequest):
     beforeSegmentId: str = Field(min_length=1, strict=True)
 
@@ -55,10 +73,14 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
     storage.initialize()
     jobs = Jobs(storage)
     jobs.initialize()
+    from .proofreading import Proofreading
+
+    proofreading = Proofreading(jobs)
     app = FastAPI(title="LocalScribe", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings = settings
     app.state.storage = storage
     app.state.jobs = jobs
+    app.state.proofreading = proofreading
     app.state.readiness = lambda: readiness(settings.model_root)
     app.state.session_token = secrets.token_urlsafe(32)
     app.add_middleware(LocalSecurityMiddleware, port=settings.port, token=app.state.session_token)
@@ -227,6 +249,38 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
     @app.post("/api/jobs/{job_id}/grouping/split")
     def grouping_split(job_id: str, body: SplitRequest):
         return jobs.grouping_split(job_id, body.expectedRevision, body.beforeSegmentId)
+
+    @app.get("/api/proofreading/readiness")
+    def proofreading_readiness():
+        from .heavy import MARKER
+
+        return {
+            **proofreading.readiness(),
+            "heavyWorkBlocked": MARKER.exists(),
+            "recovery": "After an interrupted/failed model connection, unload the configured instance in LM Studio. Wait for LocalScribe to observe it unloaded before loading it again."
+            if MARKER.exists()
+            else None,
+        }
+
+    @app.post("/api/jobs/{job_id}/proofreading", status_code=202)
+    def start_proofreading(job_id: str, body: ProofreadingRequest):
+        return proofreading.create(job_id, body.expectedRevision, body.segmentIds, body.glossary)
+
+    @app.get("/api/jobs/{job_id}/proofreading")
+    def latest_proofreading(job_id: str):
+        return proofreading.get(job_id)
+
+    @app.post("/api/jobs/{job_id}/proofreading/{task_id}/cancel")
+    def cancel_proofreading(job_id: str, task_id: str):
+        return proofreading.cancel(job_id, task_id)
+
+    @app.post("/api/jobs/{job_id}/proofreading/{task_id}/apply")
+    def apply_proofreading(job_id: str, task_id: str, body: SuggestionRequest):
+        return proofreading.apply(job_id, task_id, body.expectedRevision, body.segmentIds)
+
+    @app.post("/api/jobs/{job_id}/proofreading/{task_id}/reject")
+    def reject_proofreading(job_id: str, task_id: str, body: SuggestionRequest):
+        return proofreading.reject(job_id, task_id, body.expectedRevision, body.segmentIds)
 
     @app.post("/api/jobs/{job_id}/local-files")
     def sync_local_files(job_id: str):
