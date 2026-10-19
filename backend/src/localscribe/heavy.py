@@ -72,3 +72,19 @@ def uncertain_model(adapter):
         os.fsync(handle.fileno())
     yield
     MARKER.unlink(missing_ok=True)
+
+
+def completion_uncertain():
+    """A live owner drains its request; only an unowned marker requires recovery."""
+    if not MARKER.exists():
+        return False
+    descriptor = os.open(LOCK, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "a+") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        try:
+            return MARKER.exists()
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)

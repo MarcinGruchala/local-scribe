@@ -484,7 +484,7 @@ class Proofreading:
                 if task is None or task["status"] == "cancelling" or stopping():
                     break
                 if task["stale"]:
-                    raise ValueError("The source revision changed. Start a new preview.")
+                    break  # Publish a stale terminal state without further inference.
                 # A crash/timeout after this point must retain the heavy-work safety barrier.
                 from .heavy import uncertain_model
 
@@ -582,13 +582,15 @@ class Proofreading:
                 )
             edits = copy.deepcopy(json.loads(row["edits"]))
             edits["segments"].update({s: changes[s]["new"] for s in selected})
-            self.jobs._record_operation(
-                db,
-                row,
-                edits,
-                "proofreading",
-                {**json.loads(task["provenance"]), "taskId": task_id, "segmentIds": selected},
-            )
+            provenance = {
+                **json.loads(task["provenance"]),
+                "taskId": task_id,
+                "segmentIds": selected,
+                "acceptedRevision": row["revision"] + 1,
+                "attempt": row["attempt"],
+            }
+            edits.setdefault("proofreadingProvenance", []).append(provenance)
+            self.jobs._record_operation(db, row, edits, "proofreading", provenance)
             db.execute("UPDATE proofreading_tasks SET status='applied' WHERE id=?", (task_id,))
             saved = self.jobs._transcript(self.jobs._row(db, job_id))
         self.jobs._sync_local_files_after_commit(job_id)

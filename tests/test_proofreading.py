@@ -111,11 +111,15 @@ def test_pending_apply_restart_undo_redo_export_and_owned_deletion(client, tmp_p
     saved = service.apply(job_id, task["id"], 2, ["s0", "s1"])
     assert saved["revision"] == 3 and saved["segments"][0]["editedText"] == "Hello world."
     assert saved["grouping"]["manualSplits"] == ["s1"]
+    assert saved["provenance"]["proofreading"][0]["model"] == "synthetic"
+    assert saved["provenance"]["proofreading"][0]["segmentIds"] == ["s0", "s1"]
+    assert "proofreading" not in jobs.transcript(job_id, "original")["provenance"]
     assert jobs.history(job_id)["operations"][-1]["type"] == "proofreading"
     service = Proofreading(jobs, ModelFixture())
     assert service.get(job_id)["status"] == "applied"
     undone = jobs.undo(job_id, 3)
     assert undone["segments"] == original["segments"]
+    assert undone["provenance"] == original["provenance"]
     assert jobs.redo(job_id, 4)["segments"] == saved["segments"]
     assert next(jobs.directory(job_id).glob("attempts/*/published.json")).read_bytes() == immutable
     assert (jobs.directory(job_id) / "transcript.txt").read_text() == render(
@@ -198,6 +202,8 @@ def test_failures_cannot_apply_or_change_exports(client, tmp_path, mode):  # noq
         service.recover()
     else:
         service.run_next()
+    if mode == "stale_during":
+        assert service.get(job_id)["status"] == "stale"
     if mode == "stale_after":
         jobs.patch(job_id, 0, {"s0": "Manual draft saved"})
     with pytest.raises(JobError):
@@ -536,3 +542,66 @@ with heavy_slot() as descriptor:
             return bool(acquired)
 
     wait_for(available)
+
+
+def test_live_draining_request_does_not_display_unload_recovery(tmp_path, monkeypatch):
+    from localscribe import heavy
+
+    monkeypatch.setattr(heavy, "LOCK", tmp_path / "lock")
+    monkeypatch.setattr(heavy, "MARKER", tmp_path / "marker.json")
+
+    class Adapter:
+        endpoint = "http://127.0.0.1:1234"
+        model = "owned-test"
+
+    with heavy.heavy_slot() as descriptor:
+        assert descriptor
+        with heavy.uncertain_model(Adapter()):
+            assert not heavy.completion_uncertain()
+    assert not heavy.completion_uncertain()
+    with pytest.raises(TimeoutError), heavy.uncertain_model(Adapter()):
+        raise TimeoutError()
+    assert heavy.completion_uncertain()
+
+
+@pytest.mark.parametrize("failure", ["length", "tools", "reasoning_content", "reasoning_tokens"])
+def test_incomplete_reasoning_and_tool_output_cannot_become_suggestions(failure):
+    response = {
+        "choices": [{"finish_reason": "stop", "message": {"content": '{"changes":[]}'}}],
+        "usage": {},
+    }
+    if failure == "length":
+        response["choices"][0]["finish_reason"] = "length"
+    if failure == "tools":
+        response["choices"][0]["message"]["tool_calls"] = [{"name": "unexpected"}]
+    if failure == "reasoning_content":
+        response["choices"][0]["message"]["reasoning_content"] = "hidden reasoning"
+    if failure == "reasoning_tokens":
+        response["usage"]["completion_tokens_details"] = {"reasoning_tokens": 1}
+    model = LocalModel()
+    model.request = lambda *args: response
+    with pytest.raises(ValueError):
+        model.generate([], [], [])
+
+
+def test_accepted_batch_keeps_saved_revision_when_export_copy_fails(client, tmp_path, monkeypatch):  # noqa: F811
+    from localscribe import local_files
+
+    jobs, job_id, service = setup_service(client, tmp_path)
+    task = service.create(job_id, 0, ["s0"])
+    service.run_next()
+    writer = local_files.write_saved_revision
+
+    def failing_copy(*args, **kwargs):
+        raise OSError("Synthetic copy failure")
+
+    monkeypatch.setattr(local_files, "write_saved_revision", failing_copy)
+    saved = service.apply(job_id, task["id"], 0, ["s0"])
+    assert (
+        saved["revision"] == 1
+        and jobs.transcript(job_id)["segments"][0]["editedText"] == "Hello world."
+    )
+    assert jobs.get(job_id)["localFiles"]["status"] == "error"
+    monkeypatch.setattr(local_files, "write_saved_revision", writer)
+    assert jobs.sync_local_files(job_id)["localFiles"]["status"] == "ready"
+    assert jobs.undo(job_id, 1)["segments"][0]["editedText"] is None

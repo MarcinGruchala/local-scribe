@@ -35,6 +35,7 @@ const ROOT = process.env.LOCALSCRIBE_GROUPING_TEST_ROOT;
     await tools.getByRole('button',{name:'Reject suggestion',exact:true}).first().click();
     await tools.getByRole('button',{name:'Select all corrections',exact:true}).click();
     await tools.getByRole('button',{name:'Accept selected corrections',exact:true}).click();await waitRevision(2);
+    await tools.getByText('Accepted corrections saved as one history operation.',{exact:true}).waitFor();
     const accepted = await read('/transcript');
     assert.ok(accepted.segments.some(s=>s.editedText?.endsWith('!')));
     assert.equal((await read('/history')).operations.at(-1).type,'proofreading');

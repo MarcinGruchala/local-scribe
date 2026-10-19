@@ -4,7 +4,7 @@ This continuation stacks on PR #20 without merging it. Live acceptance comes fro
 
 ## Workflow and boundaries
 
-Configure an explicitly loaded LM Studio instance on literal HTTP loopback. Preview either the entire saved recording or one saved source/grouped block. Save/discard visible manual drafts first. An optional recording glossary is retained with the latest task; it protects spellings and is never an instruction channel. Review server-computed inline differences, reject individual/all suggestions, or accept an individual/selected batch as one persistent Undo operation. Uncertain phrases require listening and manual editing. After accepting a batch, remaining suggestions require a fresh preview of the current revision.
+Configure an explicitly loaded LM Studio instance on literal HTTP loopback. Preview either the entire saved recording or one saved source/grouped block. Save/discard visible manual drafts first. An optional recording glossary is retained with the latest task; it protects spellings and is never an instruction channel. Review server-computed inline differences, reject individual/selected/all suggestions, or accept an individual/selected batch as one persistent Undo operation. Uncertain phrases require listening and manual editing. After accepting a batch, remaining suggestions require a fresh preview of the current revision.
 
 Pending suggestions never modify saved exports. Original source text, IDs, speakers, times and grouping/manual split boundaries remain immutable. No grammar/style repair, translation, filler deletion, summaries, speaker changes or ASR replacement. Small spelling changes are guarded heuristically; human review remains necessary. This is not a factual-correctness guarantee.
 
@@ -27,3 +27,5 @@ All mutations retain the existing session-token/Origin protection.
 - `POST .../proofreading/{task}/apply` or `/reject`: `{expectedRevision, segmentIds}`. Apply verifies attempt/revision and exact saved old values transactionally, records one operation, and refreshes saved copies. Rejection affects pending suggestions only.
 
 No changes to original/current export selection or source cue timings. File-copy errors retain their existing retry/repair behavior. Pre-upgrade overwritten edits remain unrecoverable; never test upgrades against the personal store.
+
+Current JSON provenance also records accepted proofreading batches (model/settings/prompt, accepted revision/attempt and target IDs). The provenance snapshot is part of the same reversible history state. It records accepted AI history, not a guarantee that every current word is exclusively AI-produced; later manual edits remain possible. Original JSON preserves only the immutable source provenance.

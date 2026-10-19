@@ -40,7 +40,7 @@ export default function ProofreadingTools({ transcript, dirty, saving, onBusy, o
   const selectedBlock = blocks[blockIndex];
   useEffect(() => { setBlockIndex(0); }, [jobId, transcript.revision]);
   const busy = !!task && active.has(task.status);
-  const stale = !!task && (task.stale || task.revision !== transcript.revision);
+  const stale = !!task && (task.status === 'stale' || (task.status === 'ready' && (task.stale || task.revision !== transcript.revision)));
   const reviewable = task?.status === 'ready' && !stale;
   const disabled = dirty || saving;
   async function start() {

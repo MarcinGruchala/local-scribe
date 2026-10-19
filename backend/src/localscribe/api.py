@@ -252,13 +252,15 @@ def create_app(settings: Settings | None = None, storage: Storage | None = None)
 
     @app.get("/api/proofreading/readiness")
     def proofreading_readiness():
-        from .heavy import MARKER
+        from .heavy import completion_uncertain
+
+        uncertain = completion_uncertain()
 
         return {
             **proofreading.readiness(),
-            "heavyWorkBlocked": MARKER.exists(),
+            "heavyWorkBlocked": uncertain,
             "recovery": "After an interrupted/failed model connection, unload the configured instance in LM Studio. Wait for LocalScribe to observe it unloaded before loading it again."
-            if MARKER.exists()
+            if uncertain
             else None,
         }
 
