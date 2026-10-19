@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { api, preciseTimestamp, timestamp } from './api';
 import type { ProofreadingTask, Transcript } from './api';
 
@@ -12,7 +12,7 @@ const messageOf = (error: unknown) => error instanceof Error ? error.message : '
 const active = new Set(['queued', 'running', 'cancelling']);
 const plural = (count: number, singular: string, multiple = `${singular}s`) => `${count} ${count === 1 ? singular : multiple}`;
 
-export default function ProofreadingTools({ transcript, dirty, saving, visible, onBusy, onSaved, onSummary, onLocate }: Props) {
+export default memo(function ProofreadingTools({ transcript, dirty, saving, visible, onBusy, onSaved, onSummary, onLocate }: Props) {
   const [task, setTask] = useState<ProofreadingTask | null>(null);
   const [error, setError] = useState('');
   const [scope, setScope] = useState('entire');
@@ -58,7 +58,11 @@ export default function ProofreadingTools({ transcript, dirty, saving, visible, 
   const stale = !!task && (task.status === 'stale' || (task.status === 'ready' && (task.stale || task.revision !== transcript.revision)));
   const reviewable = task?.status === 'ready' && !stale;
   const disabled = dirty || saving;
-  const suggestions = reviewable ? [...task.suggestions].sort((a, b) => transcript.segments.findIndex(s => s.id === a.id) - transcript.segments.findIndex(s => s.id === b.id)) : [];
+  const sourceById = useMemo(() => {
+    const speakers = new Map(transcript.speakers.map(speaker => [speaker.id, speaker.displayName]));
+    return new Map(transcript.segments.map((source, index) => [source.id, { source, index, speaker: speakers.get(source.speakerId ?? '') ?? 'Speaker unavailable' }]));
+  }, [transcript.segments, transcript.speakers]);
+  const suggestions = useMemo(() => reviewable ? [...task.suggestions].sort((a, b) => (sourceById.get(a.id)?.index ?? 0) - (sourceById.get(b.id)?.index ?? 0)) : [], [reviewable, task?.suggestions, sourceById]);
   const corrections = suggestions.filter(s => !s.uncertain);
   const listening = suggestions.filter(s => s.uncertain);
   useEffect(() => { onSummary({ corrections: corrections.length, listening: listening.length, status: task?.status ?? '', stale }); }, [corrections.length, listening.length, task?.status, stale, onSummary]);
@@ -115,10 +119,11 @@ export default function ProofreadingTools({ transcript, dirty, saving, visible, 
         {filtered.length > 0 && <div className="review-navigation"><span>{focusedIndex + 1} of {filtered.length} shown</span><button type="button" className="button secondary" disabled={focusedIndex === 0} onClick={() => setFocused(filtered[focusedIndex - 1].id)}>Previous suggestion</button><button type="button" className="button secondary" disabled={focusedIndex === filtered.length - 1} onClick={() => setFocused(filtered[focusedIndex + 1].id)}>Next suggestion</button><button type="button" className="text-button" onClick={() => current && onLocate(current.id, false)}>Show current in transcript</button></div>}
         {!suggestions.length && <div className="review-empty"><h4>No suggestions to review</h4><p>The local model did not propose changes within the conservative proofreading scope. This does not mean the transcript has no recognition errors.</p></div>}
         {suggestions.length > 0 && !filtered.length && <p className="review-empty">No suggestions match this filter. Try All or another search.</p>}
-        <ol className="proofreading-suggestions" ref={cards}>{filtered.map(suggestion => {
-          const index = transcript.segments.findIndex(s => s.id === suggestion.id);
-          const source = transcript.segments[index];
-          const speaker = transcript.speakers.find(s => s.id === source?.speakerId)?.displayName ?? 'Speaker unavailable';
+        <ol className="proofreading-suggestions" ref={cards}>{visible && filtered.map(suggestion => {
+          const entry = sourceById.get(suggestion.id);
+          const index = entry?.index ?? -1;
+          const source = entry?.source;
+          const speaker = entry?.speaker ?? 'Speaker unavailable';
           const previous = transcript.segments[index - 1];
           return <li key={suggestion.id} data-suggestion={suggestion.id} className={`suggestion-card${suggestion.uncertain ? ' uncertain' : ''}${current?.id === suggestion.id ? ' current' : ''}`} onFocus={() => setFocused(suggestion.id)}>
             <header className="suggestion-card-header"><span className={`suggestion-kind${suggestion.uncertain ? ' listening' : ''}`}>{suggestion.uncertain ? 'Listen before editing' : 'Suggested correction'}</span><span className="suggestion-speaker">{speaker}</span>{source && <button type="button" className="suggestion-time" onClick={() => onLocate(suggestion.id, true)} aria-label={`Listen from ${timestamp(source.start)}`}>▶ {preciseTimestamp(source.start)}–{preciseTimestamp(source.end)}</button>}</header>
@@ -133,4 +138,4 @@ export default function ProofreadingTools({ transcript, dirty, saving, visible, 
     </div>
     {reviewable && suggestions.length > 0 && <footer className="review-batch"><div><strong>{corrections.length ? `${selected.size} selected` : 'Listening review'}</strong><p>{corrections.length ? 'One accepted batch is one Undo. Remaining suggestions become stale after saving.' : 'No automatic replacements are proposed. Listen and edit the source if needed.'}</p></div><div className="review-batch-buttons">{corrections.length > 0 && <><button className="text-button" type="button" disabled={disabled} onClick={() => setSelected(new Set(corrections.map(s => s.id)))}>Select all corrections</button><button className="text-button" type="button" disabled={disabled || !selected.size} onClick={() => setSelected(new Set())}>Clear selection</button><button className="button primary" type="button" disabled={disabled || !selected.size} onClick={() => decide('apply', [...selected])}>Accept selected corrections</button><button className="button secondary" type="button" disabled={disabled || !selected.size} onClick={() => decide('reject', [...selected])}>Reject selected suggestions</button></>}<button className="text-button" type="button" disabled={disabled} onClick={() => decide('reject', suggestions.map(s => s.id))}>Reject all suggestions</button></div></footer>}
   </section>;
-}
+});

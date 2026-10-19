@@ -25,8 +25,12 @@ const ROOT = process.env.LOCALSCRIBE_GROUPING_TEST_ROOT;
   await page.locator('.segment[data-segment="s101"].selected').waitFor();
   assert.ok(await page.locator('.segment[data-segment="s101"]').isVisible());
   assert.ok(await entry.isVisible());
-  await page.goto(BASE+'/#job='+jobId+'&segment=s100');await page.reload();
+  await page.goto(BASE+'/#job='+jobId+'&segment=s100');
   await page.locator('.segment[data-segment="s100"].selected').waitFor();
+  await page.locator('.segment[data-segment="s100"] textarea').fill('Visible navigation draft.');
+  await page.goto(BASE+'/#job='+jobId+'&segment=s101');
+  await page.locator('.segment[data-segment="s101"].selected').waitFor();
+  assert.equal(await page.locator('.segment[data-segment="s100"] textarea').inputValue(),'Visible navigation draft.');
   console.log('PASS visible suggestions tab -> timestamped correction -> exact source reveal');
  }finally{await browser.close()}
 })().catch(error=>{console.error(error);process.exit(1)});

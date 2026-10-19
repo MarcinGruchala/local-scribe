@@ -68,7 +68,7 @@ def main(
     result = run_phase(browser_script, env, server_script)
     if result or env.get("UI_CONTRACT_FIXTURE") == "1":
         return result
-    return run_phase(restart_script, env, server_script)
+    return run_phase(restart_script, env, server_script) if restart_script else result
 
 
 if __name__ == "__main__":

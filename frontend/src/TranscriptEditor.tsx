@@ -69,9 +69,10 @@ type EditorProps = {
 };
 
 export default function TranscriptEditor({ job, transcript, heading, notices, inspectorExtras, onSaved, onDirtyChange }: EditorProps) {
-  const [view, setView] = useState<'transcript' | 'suggestions'>('transcript');
+  const [view, setView] = useState<'transcript' | 'suggestions'>(() => new URLSearchParams(window.location.hash.slice(1)).get('view') === 'suggestions' ? 'suggestions' : 'transcript');
+  const [showReviewTimeline, setShowReviewTimeline] = useState(false);
   const [reviewSummary, setReviewSummary] = useState<ReviewSummary>({ corrections: 0, listening: 0, status: '', stale: false });
-  const initialSource = useRef(new URLSearchParams(window.location.hash.slice(1)).get('segment'));
+  const handledSourceHash = useRef('');
   const [revealedSuggestion, setRevealedSuggestion] = useState<string | null>(null);
   const [texts, setTexts] = useState<Record<string, string | null>>({});
   const [names, setNames] = useState<Record<string, string>>({});
@@ -188,7 +189,7 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
     if (!audio.current || !ready) return;
     setPlaybackError('');
     try { await audio.current.play(); }
-    catch { setPlaybackError('Audio could not start. Try playing the recording again.'); }
+    catch (error) { if (error instanceof DOMException && error.name === 'AbortError' && audio.current?.paused) return; setPlaybackError('Audio could not start. Try playing the recording again.'); }
   }, [ready]);
   // Read the element itself: React state lags behind until the media `play` event arrives.
   const togglePlayback = useCallback(() => { if (audio.current?.paused === false) audio.current.pause(); else void play(); }, [play]);
@@ -209,12 +210,19 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
     if (view === 'transcript' && revealedSuggestion) reveal(revealedSuggestion, false);
   }, [view, revealedSuggestion, reveal, sourcePartitions]);
   useEffect(() => {
-    if (!ready || !initialSource.current) return;
-    const id = initialSource.current;
-    initialSource.current = null;
-    if (!segments.some(segment => segment.id === id)) return;
-    locateSuggestion(id, false);
-  }, [ready, segments, locateSuggestion]);
+    function followSourceLink() {
+      const route = new URLSearchParams(window.location.hash.slice(1));
+      if (route.get('job') !== job.id) return;
+      const id = route.get('segment');
+      if (!id) { handledSourceHash.current = ''; return; }
+      if (!ready || handledSourceHash.current === window.location.hash) return;
+      handledSourceHash.current = window.location.hash;
+      if (segments.some(segment => segment.id === id)) locateSuggestion(id, false);
+    }
+    followSourceLink();
+    window.addEventListener('hashchange', followSourceLink);
+    return () => window.removeEventListener('hashchange', followSourceLink);
+  }, [ready, segments, locateSuggestion, job.id]);
   function changeRate(value: number) {
     if (audio.current) audio.current.playbackRate = value;
     setRate(value);
@@ -317,7 +325,7 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
       </div>
     </section>
 
-    <div className="player-dock" role="group" aria-label="Audio player">
+    <div className={`player-dock${view === 'suggestions' ? ' review-mode' : ''}`} role="group" aria-label="Audio player">
       <div className="transport">
         <div className="transport-buttons">
           <button type="button" className="icon-button skip" disabled={!ready} onClick={() => seek(time - 5)} aria-label="Back 5 seconds" title="Back 5 seconds (←)"><IconBack size={18} /><span aria-hidden="true">5</span></button>
@@ -329,7 +337,8 @@ export default function TranscriptEditor({ job, transcript, heading, notices, in
         <div className="now-speaking" style={colorStyle(colorOf(activeSegment?.speakerId ?? null))} title="Now speaking"><Avatar name={activeSegment ? speakerName(activeSegment.speakerId) : '?'} size="sm" /><span>{activeSegment ? speakerName(activeSegment.speakerId) : ready ? 'No speech at this position' : 'Loading audio…'}</span></div>
         <label className="playback-speed"><span className="visually-hidden">Playback speed</span><select aria-label="Playback speed" value={rate} onChange={event => changeRate(Number(event.target.value))}>{[0.5, 0.75, 1, 1.25, 1.5, 2].map(value => <option value={value} key={value}>{value}×</option>)}</select></label>
       </div>
-      <Timeline tracks={tracks} segments={segments} duration={totalDuration} time={time} playing={playing} ready={ready} follow={follow} activeId={activeSegment?.id ?? null} selectedId={selectedId} audio={audio} onSeek={seek} onPick={pick} />
+      {view === 'suggestions' && <button className="text-button review-timeline-toggle" type="button" aria-expanded={showReviewTimeline} onClick={() => setShowReviewTimeline(value => !value)}>{showReviewTimeline ? 'Hide speaker timeline' : 'Show speaker timeline'}</button>}
+      <div hidden={view === 'suggestions' && !showReviewTimeline}><Timeline tracks={tracks} segments={segments} duration={totalDuration} time={time} playing={playing} ready={ready} follow={follow} activeId={activeSegment?.id ?? null} selectedId={selectedId} audio={audio} onSeek={seek} onPick={pick} /></div>
       <p className="shortcut-hint"><kbd>Space</kbd> play · <kbd>←</kbd><kbd>→</kbd> 5 s · <kbd>{modifier}</kbd><kbd>S</kbd> save · click a block to jump</p>
     </div>
 
